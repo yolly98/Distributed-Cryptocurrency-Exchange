@@ -14,15 +14,14 @@
 -record(transaction, {transaction_key, coins::float(), market_value::float()}).
 
 -export([
-    create_database/0, 
     insert_new_user/2, 
     insert_new_coin/2, 
     update_coin/2,
     insert_new_asset/3, 
     add_asset/3,
     insert_new_order/4,
-    update_order_quantity/2,
-    delete_order/1, 
+    update_order_quantity/3,
+    delete_order/2, 
     insert_new_transaction/5,
     get_user/1,
     update_deposit/2,
@@ -37,54 +36,12 @@
 
 % mnesia:transaction(fun() ->  mnesia:select(user, [{'_', [], ['$_']}]) end).
 
-
 % removeTable() ->
 %    mnesia:delete_table(person).
 
 round_decimal(Number, Precision) -> %TODO spostare su util
     Factor = math:pow(10, Precision),
     round(Number * Factor) / Factor.
-
-create_database() ->
-    mnesia:stop(),
-    mnesia:delete_schema([node()]),
-    mnesia:create_schema([node()]),
-    mnesia:start(),
-
-    mnesia:create_table(coin, [
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, coin)}
-    ]),
-
-    mnesia:create_table(user, [
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, user)}
-    ]),
-
-    mnesia:create_table(asset, [
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, asset)}
-    ]),
-
-    mnesia:create_table(order, [
-        {type, ordered_set},
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, order)}
-    ]),
-
-    mnesia:create_table(transaction, [
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, transaction)}
-    ]),
-    
-    
-    mnesia:transaction(fun() ->
-        insert_new_user("Carlo", 1000),
-        insert_new_user("Felice", 1000),
-        insert_new_coin("btc", 10),
-        insert_new_asset("Felice", "btc", 69)
-    end).
-
 
 insert_new_user(UserId, Deposit) ->
     UserRecord = #user{id='$1', deposit='$2'},
@@ -174,37 +131,39 @@ add_asset(UserId, CoinId, Quantity) ->
     end.
 
 insert_new_order(UserId, Type, CoinId, Quantity) ->
+    Table = list_to_atom(CoinId ++ "_order"),
     Timestamp = os:system_time(nanosecond),
     OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'==', '$1', Timestamp}, {'==', '$2', UserId}],
-    Orders = mnesia:select(order, [{OrderRecord, Guards, ['$_']}]),
+    Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
         true -> 
-            ok = mnesia:write(#order{order_key=#order_key{timestamp=Timestamp, user_id=UserId}, type=Type, coin_id=CoinId, quantity=Quantity});
+            ok = mnesia:write(Table, #order{order_key=#order_key{timestamp=Timestamp, user_id=UserId}, type=Type, coin_id=CoinId, quantity=Quantity}, write);
         false ->
             error
     end.
 
-update_order_quantity(OrderKey, NewOrderQuantity) -> 
+update_order_quantity(OrderKey, CoinId, NewOrderQuantity) -> 
+    Table = list_to_atom(CoinId ++ "_order"),
     OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'==', '$1', OrderKey#order_key.timestamp}, {'==', '$2', OrderKey#order_key.user_id}],
-    Orders = mnesia:select(order, [{OrderRecord, Guards, ['$_']}]),
+    Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
         true ->
             error;
         false ->
             [Order | _] = Orders,
-            ok = mnesia:write(#order{order_key=Order#order.order_key, type=Order#order.type, coin_id=Order#order.coin_id, quantity=NewOrderQuantity})
+            ok = mnesia:write(Table, #order{order_key=Order#order.order_key, type=Order#order.type, coin_id=Order#order.coin_id, quantity=NewOrderQuantity}, write)
     end.
 
-delete_order(OrderKey) ->
-    ok = mnesia:delete({order, OrderKey}).
+delete_order(OrderKey, CoinId) ->
+    ok = mnesia:delete({list_to_atom(CoinId ++ "_order"), OrderKey}).
 
 insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
     Timestamp = os:system_time(nanosecond),
     TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6'},
     Guards = [{'==', '$1', Timestamp}, {'==', '$2', Seller}, {'==', '$3', Buyer}, {'==', '$4', CoinId}],
-    Transactions = mnesia:select(order, [{TransactionRecord, Guards, ['$_']}]),
+    Transactions = mnesia:select(transaction, [{TransactionRecord, Guards, ['$_']}]),
     case Transactions == [] of
         true -> 
             ok = mnesia:write(#transaction{transaction_key=#transaction_key{timestamp=Timestamp, seller=Seller, buyer=Buyer, coin_id=CoinId}, coins=Coins, market_value=MarketValue});
@@ -251,13 +210,13 @@ get_coin_value(CoinId) ->
 get_orders_by_type(UserId, Type, CoinId) ->
     OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'=/=', '$2', UserId}, {'==', '$3', Type}, {'==', '$4', CoinId}],
-    Orders = mnesia:select(order, [{OrderRecord, Guards, ['$_']}]),
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
     {ok, Orders}.
 
 get_orders_by_coin(CoinId) ->
     OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'==', '$4', CoinId}],
-    Orders = mnesia:select(order, [{OrderRecord, Guards, ['$_']}]),
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
     {ok, Orders}.
 
 convert_asset_to_currency(MarketValue, Quantity) ->
@@ -313,8 +272,8 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
     NewPlacedCurrency = round_decimal(PlacedCurrency - SellableCurrency, 8),
 
     if
-        NewOrderQuantity == 0 -> ok = delete_order(OrderKey);
-        NewOrderQuantity > 0 -> ok = update_order_quantity(OrderKey, NewOrderQuantity);
+        NewOrderQuantity == 0 -> ok = delete_order(OrderKey, CoinId);
+        NewOrderQuantity > 0 -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity);
         NewOrderQuantity < 0 -> error
     end,
     ok = update_deposit(Seller#user.id, NewSellerDeposit),
@@ -365,8 +324,8 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
     NewPlacedAsset = round_decimal(PlacedAsset - BuyableAsset, 8),
 
     if
-        BuyableCurrency == Order#order.quantity -> ok = delete_order(OrderKey);
-        BuyableCurrency < Order#order.quantity -> ok = update_order_quantity(OrderKey, NewOrderQuantity)
+        BuyableCurrency == Order#order.quantity -> ok = delete_order(OrderKey, CoinId);
+        BuyableCurrency < Order#order.quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
     end,
 
     ok = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),

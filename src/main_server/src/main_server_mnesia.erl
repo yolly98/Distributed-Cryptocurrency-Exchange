@@ -16,7 +16,8 @@
 -export([
     create_database/0,
     insert_new_coin/2,
-    get_coins/0
+    get_coins/0,
+    create_order_table/1
 ]).
 
 create_database() ->
@@ -40,25 +41,35 @@ create_database() ->
         {attributes, record_info(fields, asset)}
     ]),
 
-    mnesia:create_table(order, [
-        {type, ordered_set},
-        {disc_copies, [node()]},
-        {attributes, record_info(fields, order)}
-    ]),
-
     mnesia:create_table(transaction, [
         {disc_copies, [node()]},
         {attributes, record_info(fields, transaction)}
     ]),
     
-    insert_new_coin("btc1", 20),
-    insert_new_coin("btc2", 20),
-    insert_new_coin("btc3", 20),
-    insert_new_coin("btc4", 20),
-    insert_new_coin("btc5", 20),
-    insert_new_coin("btc6", 20),
-    insert_new_coin("btc7", 20).
+    % test
+    {atomic, _} = mnesia:transaction(fun() ->
+        insert_new_coin("btc1", 20),
+        insert_new_coin("btc2", 20),
+        insert_new_coin("btc3", 20),
 
+        create_order_table("btc1"),
+        create_order_table("btc2"),
+        create_order_table("btc3"),
+
+        insert_new_user("Stefano", 500),
+        insert_new_user("Andrea", 250),
+        insert_new_asset("Andrea", "btc1", 10)
+    end).
+
+create_order_table(Coin) ->
+    mnesia:create_table(list_to_atom(Coin ++ "_order"), [
+        {type, ordered_set},
+        {disc_copies, [node()]},
+        {attributes, record_info(fields, order)}
+    ]).
+
+
+% ------------------------------------
 
 get_coins() ->
     {atomic, Res} = mnesia:transaction(fun() ->
@@ -73,21 +84,36 @@ get_coins() ->
     end),
     Res.
 
-
-% write(Tab :: table(),
-%       Record :: tuple(),
-%       LockKind :: write_locks()) ->
-%          ok
 insert_new_coin(CoinId, Value) ->
-    {atomic, Res} = mnesia:transaction(fun() ->
-        CoinRecord = #coin{id='$1', value='$2'},
-        Guard = {'==', '$1', CoinId},
-        Coins = mnesia:select(coin, [{CoinRecord, [Guard], ['$_']}]),
-        case Coins == [] of
-            true -> 
-                ok = mnesia:write(#coin{id=CoinId, value=Value});
-            false ->
-                error
-        end
-    end),
-    Res.
+    CoinRecord = #coin{id='$1', value='$2'},
+    Guard = {'==', '$1', CoinId},
+    Coins = mnesia:select(coin, [{CoinRecord, [Guard], ['$_']}]),
+    case Coins == [] of
+        true -> 
+            ok = mnesia:write(#coin{id=CoinId, value=Value});
+        false ->
+            error
+    end.
+
+
+insert_new_user(UserId, Deposit) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
+    case Users == [] of
+        true -> 
+            ok = mnesia:write(#user{id=UserId, deposit=Deposit});
+        false ->
+            error
+    end.
+
+insert_new_asset(UserId, CoinId, Quantity) ->
+    AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
+    Guards = [{'==', '$1', UserId}, {'==', '$2', CoinId}],
+    Assets = mnesia:select(asset, [{AssetRecord, Guards, ['$_']}]),
+    case Assets == [] of
+        true -> 
+            ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=Quantity});
+        false ->
+            error
+    end.
