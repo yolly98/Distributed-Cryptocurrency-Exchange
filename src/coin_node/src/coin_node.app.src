@@ -1,0 +1,15 @@
+{application, coin_node,
+ [{description, "Coin Node Application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {coin_node_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env, [{main_server, 'main_server@main_server'}]},
+  {modules, []},
+
+  {licenses, ["Apache-2.0"]},
+  {links, []}
+ ]}.

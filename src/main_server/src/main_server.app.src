@@ -1,0 +1,15 @@
+{application, main_server,
+ [{description, "Main Server Application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {main_server_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env, [{nodes, ['node@node1', 'node@node2']}]},
+  {modules, []},
+
+  {licenses, ["Apache-2.0"]},
+  {links, []}
+ ]}.
