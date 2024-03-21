@@ -9,33 +9,32 @@ connect_nodes([]) ->
 
 connect_nodes([Node | RemainingNodes]) ->
     true = net_kernel:connect_node(Node),
-    connect_nodes(RemainingNodes),
     spawn_monitor(Node, application, start, [coin_node]),
-    io:format("Spawned node ~p\n", [Node]).
+    receive ok ->
+        Tables = lists:delete(schema, mnesia:system_info(tables)),
+        main_server_mnesia:add_node_to_schema(Node, [], Tables)
+    end,
+    io:format("Spawned node ~p\n", [Node]),
+    connect_nodes(RemainingNodes).
 
 start(_StartType, _StartArgs) ->
-    io:format("exchange prototype started\n"),
-    
+    io:format("main server started\n"),
+    true = register(main_server, self()),
+
     {ok, Nodes} = application:get_env(nodes),
     if 
         Nodes == [] -> throw("No nodes configurated\n");
         Nodes =/= [] -> ok
     end,
+
+    mnesia:start(node()),
+    main_server_mnesia:create_database(),
     ok = connect_nodes(Nodes),
-    
     io:format("nodes connection completed\n"),
 
-    mnesia:start(Nodes ++ node()),
-    main_server_mnesia:create_database(),
-    
-    true = register(main_server, self()),
-
-    io:format("process spawns completed\n"),
-
     main_server_sup:start_link().
-
     % handle monitored process death
 
 stop(_State) ->
     mnesia:stop(),
-    io:format("exchange prototype stopped\n").
+    io:format("main server stopped\n").

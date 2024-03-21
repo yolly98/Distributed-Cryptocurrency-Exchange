@@ -7,7 +7,9 @@
 start(_StartType, _StartArgs) ->
     register(node(), self()),
     mnesia:start(),
-    % mnesia:add_table_copy(order, self(), disc_copies),
+    
+    {main_server, main_server@main_server} ! ok,
+
     io:format("coin node started\n"),
     coin_node_sup:start_link().
 

@@ -17,7 +17,8 @@
     create_database/0,
     insert_new_coin/2,
     get_coins/0,
-    create_order_table/1
+    create_order_table/1,
+    add_node_to_schema/3
 ]).
 
 create_database() ->
@@ -60,6 +61,23 @@ create_database() ->
         insert_new_user("Andrea", 250),
         insert_new_asset("Andrea", "btc1", 10)
     end).
+
+create_table_copies(Node, [], CopiesType) ->
+    ok;
+
+create_table_copies(Node , [Table | RemainingTables], CopiesType) ->
+    {atomic, _} = mnesia:add_table_copy(Table, Node, CopiesType),
+    create_table_copies(Node, RemainingTables, CopiesType).
+
+add_node_to_schema(Node, RamTables, DiscTables) ->
+    % add node to schema, tables can be accessed remotely
+    {ok, _} = mnesia:change_config(extra_db_nodes, [Node]),
+    % enable disc copies in the node
+    {atomic, _} = mnesia:change_table_copy_type(schema, Node, disc_copies),
+    % create ram copies of tables in the node
+    create_table_copies(Node, RamTables, ram_copies),
+    % create disc copies of tables in the node
+    create_table_copies(Node, DiscTables, disc_copies).
 
 create_order_table(Coin) ->
     mnesia:create_table(list_to_atom(Coin ++ "_order"), [
