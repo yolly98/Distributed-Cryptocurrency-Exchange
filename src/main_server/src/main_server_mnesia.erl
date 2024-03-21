@@ -48,14 +48,14 @@ create_database() ->
     ]),
     
     % test
+    create_order_table("btc1"),
+    create_order_table("btc2"),
+    create_order_table("btc3"),
+
     {atomic, _} = mnesia:transaction(fun() ->
         insert_new_coin("btc1", 20),
         insert_new_coin("btc2", 20),
         insert_new_coin("btc3", 20),
-
-        create_order_table("btc1"),
-        create_order_table("btc2"),
-        create_order_table("btc3"),
 
         insert_new_user("Stefano", 500),
         insert_new_user("Andrea", 250),
@@ -80,7 +80,7 @@ add_node_to_schema(Node, RamTables, DiscTables) ->
     create_table_copies(Node, DiscTables, disc_copies).
 
 create_order_table(Coin) ->
-    mnesia:create_table(list_to_atom(Coin ++ "_order"), [
+    {atomic, _} = mnesia:create_table(list_to_atom(Coin ++ "_order"), [
         {type, ordered_set},
         {disc_copies, [node()]},
         {attributes, record_info(fields, order)}

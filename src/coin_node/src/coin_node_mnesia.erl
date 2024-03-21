@@ -138,14 +138,15 @@ insert_new_order(UserId, Type, CoinId, Quantity) ->
     Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
         true -> 
-            ok = mnesia:write(Table, #order{order_key=#order_key{timestamp=Timestamp, user_id=UserId}, type=Type, coin_id=CoinId, quantity=Quantity}, write);
+            ok = mnesia:write({Table, {order_key, Timestamp, UserId}, Type, CoinId, Quantity});
         false ->
             error
     end.
 
 update_order_quantity(OrderKey, CoinId, NewOrderQuantity) -> 
     Table = list_to_atom(CoinId ++ "_order"),
-    OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
+    % OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'==', '$1', OrderKey#order_key.timestamp}, {'==', '$2', OrderKey#order_key.user_id}],
     Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
@@ -153,7 +154,7 @@ update_order_quantity(OrderKey, CoinId, NewOrderQuantity) ->
             error;
         false ->
             [Order | _] = Orders,
-            ok = mnesia:write(Table, #order{order_key=Order#order.order_key, type=Order#order.type, coin_id=Order#order.coin_id, quantity=NewOrderQuantity}, write)
+            ok = mnesia:write({Table, Order#order.order_key, Order#order.type, Order#order.coin_id, NewOrderQuantity})
     end.
 
 delete_order(OrderKey, CoinId) ->
