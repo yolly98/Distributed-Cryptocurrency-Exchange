@@ -14,7 +14,7 @@ init(Req, State) ->
 websocket_init(State) ->
 	erlang:start_timer(1000, self(), <<"Hello!">>),
 	global:register_name({?POOL, self()}, self()), % TEST
-	io:format("registered pid ~p\n", [self()]),
+	io:format("registered pid ~p\n", [self()]), % TEST
  	{[], State}.
 
 websocket_handle({text, Msg}, State) ->

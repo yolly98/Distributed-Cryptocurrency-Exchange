@@ -5,7 +5,7 @@
 start() ->
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/main-server", rest_handler, []}
+            {"/api/res", rest_handler, []}
         ]}
     ]),
     {ok, _} = cowboy:start_clear(http, [{port, 8080}], #{

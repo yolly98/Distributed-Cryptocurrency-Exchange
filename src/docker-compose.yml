@@ -1,0 +1,60 @@
+services:
+  main_server:
+    build: backend/main_server/
+    container_name: main_server
+    ports: 
+      - "8080:8080"
+    networks: 
+      erlang_network:
+          ipv4_address: 172.24.0.10
+    hostname: main_server
+    depends_on:
+      - coin_node1
+      - coin_node2
+      - coin_node3
+
+  coin_node1:
+    build: backend/coin_node/
+    container_name: coin_node1
+    ports: 
+      - "8081:8080"
+    networks: 
+      erlang_network:
+          ipv4_address: 172.24.0.11
+    hostname: node1
+
+  coin_node2:
+    build: backend/coin_node/
+    container_name: coin_node2
+    ports: 
+      - "8082:8080"
+    networks: 
+      erlang_network:
+          ipv4_address: 172.24.0.12
+    hostname: node2
+
+  coin_node3:
+    build: backend/coin_node/
+    container_name: coin_node3
+    ports: 
+      - "8083:8080"
+    networks: 
+      erlang_network:
+          ipv4_address: 172.24.0.13
+    hostname: node3
+
+  load_balancer:
+    build: backend/load_balancer/
+    container_name: load_balancer
+    ports: 
+      - "80:80"
+    networks: 
+      - erlang_network
+    hostname: load_balancer
+
+networks:
+  erlang_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/24
