@@ -8,7 +8,6 @@
 -record(user, {id::string(), deposit::float()}).
 
 -record(order_key, {timestamp::integer(), user_id::string()}).
--record(order, {order_key, type::string(), coin_id::string(), quantity::float()}).
 
 -record(transaction_key, {timestamp::integer(), seller::string(), buyer::string(), coin_id::string()}).
 -record(transaction, {transaction_key, coins::float(), market_value::float()}).
@@ -27,21 +26,12 @@
     update_deposit/2,
     get_coin_value/1,
     get_orders_by_type/3,
-
     get_asset/2,
     sub_asset/3,
     sell/3,
-
     buy/3]).
 
-% mnesia:transaction(fun() ->  mnesia:select(user, [{'_', [], ['$_']}]) end).
-
-% removeTable() ->
-%    mnesia:delete_table(person).
-
-round_decimal(Number, Precision) -> %TODO spostare su util
-    Factor = math:pow(10, Precision),
-    round(Number * Factor) / Factor.
+% -------------------------- USER --------------------------
 
 insert_new_user(UserId, Deposit) ->
     UserRecord = #user{id='$1', deposit='$2'},
@@ -54,6 +44,32 @@ insert_new_user(UserId, Deposit) ->
             error
     end.
 
+get_user(UserId) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
+    case Users == [] of
+        true -> 
+            error;
+        false ->
+            [User | _] = Users,
+            {ok, User}
+    end.
+
+update_deposit(UserId, NewValue) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
+    case Users == [] of
+        true -> 
+            error;
+        false ->
+            [User | _] = Users,
+            ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
+    end.
+
+% -------------------------- COIN --------------------------
+
 insert_new_coin(CoinId, Value) ->
     CoinRecord = #coin{id='$1', value='$2'},
     Guard = {'==', '$1', CoinId},
@@ -63,6 +79,18 @@ insert_new_coin(CoinId, Value) ->
             ok = mnesia:write(#coin{id=CoinId, value=Value});
         false ->
             error
+    end.
+
+get_coin_value(CoinId) ->
+    CoinRecord = #coin{id='$1', value='$2'},
+    Guard = {'==', '$1', CoinId},
+    Values = mnesia:select(coin, [{CoinRecord, [Guard], ['$2']}]),
+    case Values == [] of
+        true -> 
+            error;
+        false ->
+            [Value | _] = Values,
+            {ok, Value}
     end.
 
 update_coin(CoinId, MarketValue) -> 
@@ -75,6 +103,8 @@ update_coin(CoinId, MarketValue) ->
         false ->
             ok = mnesia:write(#coin{id=CoinId, value=MarketValue})
     end.
+
+% -------------------------- ASSET --------------------------
 
 insert_new_asset(UserId, CoinId, Quantity) ->
     AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
@@ -130,6 +160,8 @@ add_asset(UserId, CoinId, Quantity) ->
             ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=NewQuantity})
     end.
 
+% -------------------------- ORDER --------------------------
+
 insert_new_order(UserId, Type, CoinId, Quantity) ->
     Table = list_to_atom(CoinId ++ "_order"),
     Timestamp = os:system_time(nanosecond),
@@ -142,6 +174,20 @@ insert_new_order(UserId, Type, CoinId, Quantity) ->
         false ->
             error
     end.
+
+get_orders_by_type(UserId, Type, CoinId) ->
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
+    Guards = [{'=/=', '$2', UserId}, {'==', '$3', Type}, {'==', '$4', CoinId}],
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
+    {ok, Orders}.
+
+get_orders_by_coin(CoinId) ->
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
+    Guards = [{'==', '$4', CoinId}],
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
+    {ok, Orders}.
 
 update_order_quantity(OrderKey, CoinId, NewOrderQuantity) -> 
     Table = list_to_atom(CoinId ++ "_order"),
@@ -159,6 +205,8 @@ update_order_quantity(OrderKey, CoinId, NewOrderQuantity) ->
 delete_order(OrderKey, CoinId) ->
     ok = mnesia:delete({list_to_atom(CoinId ++ "_order"), OrderKey}).
 
+% -------------------------- TRANSACTION --------------------------
+
 insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
     Timestamp = os:system_time(nanosecond),
     TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6'},
@@ -171,55 +219,11 @@ insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
             error
     end.
 
-get_user(UserId) ->
-    UserRecord = #user{id='$1', deposit='$2'},
-    Guard = {'==', '$1', UserId},
-    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
-    case Users == [] of
-        true -> 
-            error;
-        false ->
-            [User | _] = Users,
-            {ok, User}
-    end.
+% -------------------------- BUSINESS LOGIC --------------------------
 
-update_deposit(UserId, NewValue) ->
-    UserRecord = #user{id='$1', deposit='$2'},
-    Guard = {'==', '$1', UserId},
-    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
-    case Users == [] of
-        true -> 
-            error;
-        false ->
-            [User | _] = Users,
-            ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
-    end.
-
-get_coin_value(CoinId) ->
-    Coin = #coin{id='$1', value='$2'},
-    Guard = {'==', '$1', CoinId},
-    Values = mnesia:select(coin, [{Coin, [Guard], ['$2']}]),
-    case Values == [] of
-        true -> 
-            error;
-        false ->
-            [Value | _] = Values,
-            {ok, Value}
-    end.
-
-get_orders_by_type(UserId, Type, CoinId) ->
-    Table = list_to_atom(CoinId ++ "_order"),
-    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
-    Guards = [{'=/=', '$2', UserId}, {'==', '$3', Type}, {'==', '$4', CoinId}],
-    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
-    {ok, Orders}.
-
-get_orders_by_coin(CoinId) ->
-    Table = list_to_atom(CoinId ++ "_order"),
-    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
-    Guards = [{'==', '$4', CoinId}],
-    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
-    {ok, Orders}.
+round_decimal(Number, Precision) -> %TODO spostare su util
+    Factor = math:pow(10, Precision),
+    round(Number * Factor) / Factor.
 
 convert_asset_to_currency(MarketValue, Quantity) ->
     MarketValue * Quantity.
@@ -350,8 +354,4 @@ sell(UserId, CoinId, PlacedAsset) ->
 
             complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset)
     end.
-
-    
-
-
         
