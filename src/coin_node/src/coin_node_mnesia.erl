@@ -133,7 +133,7 @@ add_asset(UserId, CoinId, Quantity) ->
 insert_new_order(UserId, Type, CoinId, Quantity) ->
     Table = list_to_atom(CoinId ++ "_order"),
     Timestamp = os:system_time(nanosecond),
-    OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
     Guards = [{'==', '$1', Timestamp}, {'==', '$2', UserId}],
     Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
@@ -146,15 +146,14 @@ insert_new_order(UserId, Type, CoinId, Quantity) ->
 update_order_quantity(OrderKey, CoinId, NewOrderQuantity) -> 
     Table = list_to_atom(CoinId ++ "_order"),
     OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
-    % OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
     Guards = [{'==', '$1', OrderKey#order_key.timestamp}, {'==', '$2', OrderKey#order_key.user_id}],
     Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
         true ->
             error;
         false ->
-            [Order | _] = Orders,
-            ok = mnesia:write({Table, Order#order.order_key, Order#order.type, Order#order.coin_id, NewOrderQuantity})
+            [{_, _, Type, CoinId, _} | _] = Orders,
+            ok = mnesia:write({Table, OrderKey, Type, CoinId, NewOrderQuantity})
     end.
 
 delete_order(OrderKey, CoinId) ->
@@ -209,13 +208,15 @@ get_coin_value(CoinId) ->
     end.
 
 get_orders_by_type(UserId, Type, CoinId) ->
-    OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
     Guards = [{'=/=', '$2', UserId}, {'==', '$3', Type}, {'==', '$4', CoinId}],
     Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
     {ok, Orders}.
 
 get_orders_by_coin(CoinId) ->
-    OrderRecord = #order{order_key=#order_key{timestamp='$1', user_id='$2'}, type='$3', coin_id='$4', quantity='$5'},
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
     Guards = [{'==', '$4', CoinId}],
     Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
     {ok, Orders}.
@@ -230,11 +231,12 @@ count_orders([], TotalBuy, TotalSell) ->
     {TotalBuy, TotalSell};
 
 count_orders([Order | RemainingOrders], TotalBuy, TotalSell) ->
+    {_, _, Type, _, Quantity} = Order,
     if
-        Order#order.type == "buy" -> 
-            count_orders(RemainingOrders, TotalBuy + Order#order.quantity, TotalSell);
-        Order#order.type == "sell" -> 
-            count_orders(RemainingOrders, TotalBuy, TotalSell + Order#order.quantity)
+        Type == "buy" -> 
+            count_orders(RemainingOrders, TotalBuy + Quantity, TotalSell);
+        Type == "sell" -> 
+            count_orders(RemainingOrders, TotalBuy, TotalSell + Quantity)
     end.
 
 update_market_value(MarketValue, Type, CoinId, Quantity) ->
@@ -262,12 +264,12 @@ complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset
     ok;
 
 complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset) ->
-    OrderKey = Order#order.order_key, 
+    {_, OrderKey, _, _, Quantity} = Order,
     {ok, Seller} = get_user(OrderKey#order_key.user_id),
-    SellableCurrency = erlang:min(convert_asset_to_currency(MarketValue, Order#order.quantity), PlacedCurrency),
+    SellableCurrency = erlang:min(convert_asset_to_currency(MarketValue, Quantity), PlacedCurrency),
     SellableAsset = convert_currency_to_asset(MarketValue, SellableCurrency),
 
-    NewOrderQuantity = round_decimal(Order#order.quantity - SellableAsset, 8),
+    NewOrderQuantity = round_decimal(Quantity - SellableAsset, 8),
     NewSellerDeposit = Seller#user.deposit + SellableCurrency,
     NewMarketValue = update_market_value(MarketValue, "sell", CoinId, SellableAsset),
     NewPlacedCurrency = round_decimal(PlacedCurrency - SellableCurrency, 8),
@@ -285,7 +287,7 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         NewPlacedCurrency =/= 0 -> complete_sell_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedCurrency, BoughtAsset + SellableAsset)
     end.
 
-buy(UserId, PlacedCurrency, CoinId) ->
+buy(UserId, CoinId, PlacedCurrency) ->
     {ok, User} = get_user(UserId),
     Deposit = User#user.deposit,
     if 
@@ -315,18 +317,18 @@ complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency)
     ok;
 
 complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency) ->
-    OrderKey = Order#order.order_key,
-    BuyableAsset = convert_currency_to_asset(MarketValue, Order#order.quantity),
+    {_, OrderKey, _, _, Quantity} = Order,
+    BuyableAsset = convert_currency_to_asset(MarketValue, Quantity),
     BuyableCurrency = convert_asset_to_currency(MarketValue, erlang:min(BuyableAsset, PlacedAsset)),
 
-    NewOrderQuantity = round_decimal(Order#order.quantity - BuyableCurrency, 8),
+    NewOrderQuantity = round_decimal(Quantity - BuyableCurrency, 8),
     ok = add_asset(OrderKey#order_key.user_id, CoinId, BuyableAsset), 
     NewMarketValue = update_market_value(MarketValue, "buy", CoinId, BuyableAsset),
     NewPlacedAsset = round_decimal(PlacedAsset - BuyableAsset, 8),
 
     if
-        BuyableCurrency == Order#order.quantity -> ok = delete_order(OrderKey, CoinId);
-        BuyableCurrency < Order#order.quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
+        BuyableCurrency == Quantity -> ok = delete_order(OrderKey, CoinId);
+        BuyableCurrency < Quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
     end,
 
     ok = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),
@@ -336,7 +338,7 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
         NewPlacedAsset =/= 0 -> complete_buy_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedAsset, EarnedCurrency + BuyableCurrency)
     end.
 
-sell(UserId, PlacedAsset, CoinId) ->
+sell(UserId, CoinId, PlacedAsset) ->
     {ok, Asset} = get_asset(UserId, CoinId),
     AssetQuantity = Asset#asset.quantity,
     if
