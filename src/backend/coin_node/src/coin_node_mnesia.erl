@@ -304,8 +304,7 @@ complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset
         PlacedCurrency > 0 -> ok = insert_new_order(UserId, "buy", CoinId, PlacedCurrency);
         PlacedCurrency =< 0 -> ok
     end,
-    ok = add_asset(UserId, CoinId, BoughtAsset),
-    ok;
+    ok = add_asset(UserId, CoinId, BoughtAsset);
 
 complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset) ->
     {_, OrderKey, _, _, Quantity} = Order,
@@ -352,13 +351,12 @@ complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency)
     ok = update_coin(CoinId, MarketValue),
     {ok, User} = get_user(UserId),
     NewDeposit = User#user.deposit + EarnedCurrency,
-    update_deposit(UserId, NewDeposit),
+    ok = update_deposit(UserId, NewDeposit),
     if 
         PlacedAsset > 0 -> ok = insert_new_order(UserId, "sell", CoinId, PlacedAsset);
         PlacedAsset == 0 -> ok;
         PlacedAsset < 0 -> error
-    end,
-    ok;
+    end;
 
 complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency) ->
     {_, OrderKey, _, _, Quantity} = Order,
@@ -392,6 +390,6 @@ sell(UserId, CoinId, PlacedAsset) ->
             {ok, Orders} = get_orders_by_type(UserId, "buy", CoinId),
             {ok, MarketValue} = get_coin_value(CoinId),
 
-            complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset)
+            ok = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset)
     end.
         
