@@ -54,7 +54,8 @@ create_database() ->
     {atomic, _} = mnesia:transaction(fun() ->
         insert_new_user("Stefano", 500),
         insert_new_user("Andrea", 250),
-        insert_new_asset("Andrea", "btc1", 10)
+        insert_new_asset("Andrea", "btc1", 10),
+        insert_new_asset("Andrea", "btc2", 23)
     end).
 
 create_table_copies(Node, [], CopiesType) ->

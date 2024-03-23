@@ -52,17 +52,17 @@ services:
       - erlang_network
     hostname: load_balancer
 
-  frontend:
-    build: frontend/
-    container_name: frontend
-    ports:
-      - "80:80"
-    networks: 
-      - erlang_network
-    hostname: frontend
-    depends_on:
-      - main_server
-      - load_balancer
+#  frontend:
+#    build: frontend/
+#    container_name: frontend
+#    ports:
+#      - "80:80"
+#    networks: 
+#      - erlang_network
+#    hostname: frontend
+#    depends_on:
+#      - main_server
+#      - load_balancer
 
 networks:
   erlang_network:

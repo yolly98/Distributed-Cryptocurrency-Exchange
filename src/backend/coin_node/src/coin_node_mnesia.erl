@@ -23,9 +23,12 @@
     delete_order/2, 
     insert_new_transaction/5,
     get_user/1,
+    get_deposit/1,
     update_deposit/2,
     get_coin_value/1,
     get_orders_by_type/3,
+    get_assets_by_user/1,
+    get_asset_by_user/2,
     get_asset/2,
     sub_asset/3,
     sell/3,
@@ -54,6 +57,18 @@ get_user(UserId) ->
         false ->
             [User | _] = Users,
             {ok, User}
+    end.
+
+get_deposit(UserId) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Deposits = mnesia:select(user, [{UserRecord, [Guard], ['$2']}]),
+    case Deposits == [] of
+        true -> 
+            error;
+        false ->
+            [Deposit | _] = Deposits,
+            {ok, Deposit}
     end.
 
 update_deposit(UserId, NewValue) ->
@@ -117,13 +132,38 @@ insert_new_asset(UserId, CoinId, Quantity) ->
             error
     end.
 
+prepare_assets_list([], PreparedAssetsList) ->
+    {ok, PreparedAssetsList};
+
+prepare_assets_list([[CoinId, Quantity] | RemainingAssets], PreparedAssetsList) ->
+    Asset = #{<<"coin">> => list_to_binary(CoinId), <<"quantity">> => Quantity},
+    prepare_assets_list(RemainingAssets, PreparedAssetsList ++ [Asset]).
+
+get_assets_by_user(UserId) ->
+    AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
+    Guards = [{'==', '$1', UserId}],
+    Assets = mnesia:select(asset, [{AssetRecord, Guards, [['$2', '$3']]}]),
+    prepare_assets_list(Assets, []).
+
+get_asset_by_user(UserId, CoinId) ->
+    AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
+    Guards = [{'==', '$1', UserId}, {'==', '$2', CoinId}],
+    Assets  = mnesia:select(asset, [{AssetRecord, Guards, ['$3']}]),
+    case Assets == [] of
+        true -> 
+            {ok, []};
+        false ->
+            [Asset | _] = Assets,
+            {ok, Asset}
+    end.
+
 get_asset(UserId, CoinId) ->
     AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
     Guards = [{'==', '$1', UserId}, {'==', '$2', CoinId}],
     Assets = mnesia:select(asset, [{AssetRecord, Guards, ['$_']}]),
     case Assets == [] of
         true -> 
-            error;
+            {error, []};
         false ->
             [Asset | _] = Assets,
             {ok, Asset}
