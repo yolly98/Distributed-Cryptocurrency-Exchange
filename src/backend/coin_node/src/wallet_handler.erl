@@ -1,11 +1,16 @@
 -module(wallet_handler).
 
--export([init/2]).
--export([content_types_provided/2]).
--export([get_handler/2]).
+-export([
+    init/2,
+    content_types_provided/2,
+    get_handler/2
+]).
 
 init(Req, Opts) ->
-	{cowboy_rest, Req, Opts}.
+    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"GET, OPTIONS">>, Req),
+    Req2 = cowboy_req:set_resp_header(<<"access-control-allow-headers">>, <<"content-type, accept">>, Req1),
+    Req3 = cowboy_req:set_resp_header(<<"access-control-allow-origin">>, <<$*>>, Req2),
+	{cowboy_rest, Req3, Opts}.
 
 content_types_provided(Req, State) ->
 	{[

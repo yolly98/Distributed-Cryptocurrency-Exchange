@@ -17,28 +17,19 @@ websocket_init(State) ->
  	{[], State}.
 
 websocket_handle({text, Msg}, State) ->
-	% decode Msg
-	Decoded_msg = jsone:try_decode(Msg),
-	case element(1, Decoded_msg) of
+	DecodedMsg = jsone:try_decode(Msg),
+	case element(1, DecodedMsg) of
 		ok ->
-			Json = element(2, Decoded_msg),
+			Json = element(2, DecodedMsg),
 			{ok, Opcode} = maps:find(<<"opcode">>, Json),
-			{ok, Name} = maps:find(<<"name">>, Json),
 			case Opcode of
-				<<"new">> ->
-					{ok, Surname} = maps:find(<<"surname">>, Json),
-					mnesia_test:createNewPerson(Name, Surname),
-					Reply = jsone:encode(#{<<"status">> => <<"ok">>});
-				<<"delete">> ->
-					mnesia_test:deletePerson(Name),
-					Reply = jsone:encode(#{<<"status">> => <<"ok">>});
-				<<"select">> ->
-					{_, {_, People}} = mnesia_test:selectPersonByName(Name),
-					Reply = jsone:encode(#{<<"result">> => jsone:encode(People)})
+				<<"keepalive">> ->
+					Reply = jsone:encode(#{<<"status">> => <<"ok">>})
 			end,
 			{[{text, Reply}], State};
 		error ->
-			{[{text, "Invalid Json"}], State}
+			Reply = jsone:encode(#{<<"status">> => <<"error">>, <<"message">> => <<"invalid json">>}),
+			{[{text, Reply}], State}
 	end.
 
 websocket_info({broadcast, Msg}, State) ->
