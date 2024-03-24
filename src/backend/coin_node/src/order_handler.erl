@@ -34,14 +34,40 @@ post_handler(Req, State) ->
     try
         case OpCode of
             "sell" ->
-                {atomic, ok} = mnesia:transaction(fun() -> coin_node_mnesia:sell(User, Coin, Quantity) end);
+                {atomic, {Deposit, Asset, MarketValue}} = mnesia:transaction(fun() -> 
+                    ok = coin_node_mnesia:sell(User, Coin, Quantity),
+                    {ok, Deposit} = coin_node_mnesia:get_deposit(User),
+                    {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+                    {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
+                    {Deposit, Asset, MarketValue}
+                end);
             "buy" ->
-                {atomic, ok} = mnesia:transaction(fun() -> coin_node_mnesia:buy(User, Coin, Quantity) end)
+                {atomic, {Deposit, Asset, MarketValue}} = mnesia:transaction(fun() -> 
+                    ok = coin_node_mnesia:buy(User, Coin, Quantity),
+                    {ok, Deposit} = coin_node_mnesia:get_deposit(User),
+                    {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+                    {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
+                    {Deposit, Asset, MarketValue}
+                end)
         end,
-        Req2 = cowboy_req:set_resp_body(jsone:encode(#{<<"Operation">> => <<"Success">>}), Req1),
+        RegisteredPids = global:registered_names(),
+        lists:foreach(fun(RegisteredPid) ->
+            case RegisteredPid of
+                {dispatcher, _, Pid} ->
+                    Pid ! {update_market_value, Coin, MarketValue};
+                _ ->
+                    ok
+            end
+        end, RegisteredPids),
+        Req2 = cowboy_req:set_resp_body(jsone:encode(#{<<"operation">> => <<"success">>, <<"deposit">> => Deposit, <<"asset">> => Asset}), Req1),
         {true, Req2, State}
     catch
         error:_ ->
-            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"Operation">> => <<"Failed">>}), Req1),
+            {atomic, {EffectiveDeposit, EffectiveAsset}} = mnesia:transaction(fun() -> 
+                {ok, EffectiveDeposit} = coin_node_mnesia:get_deposit(User),
+                {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+                {EffectiveDeposit, EffectiveAsset}
+            end),
+            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"operation">> => <<"failed">>, <<"deposit">> => EffectiveDeposit, <<"asset">> => EffectiveAsset}), Req1),
             {halt, Req3, State}
     end.

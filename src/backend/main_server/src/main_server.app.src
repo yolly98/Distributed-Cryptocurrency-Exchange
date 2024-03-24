@@ -7,7 +7,7 @@
    [kernel,
     stdlib
    ]},
-  {env, [{nodes, ['node@node1']}]},
+  {env, [{nodes, ['node@node1', 'node@node2']}]},
   {modules, []},
 
   {licenses, ["Apache-2.0"]},

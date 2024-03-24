@@ -14,11 +14,17 @@ init([]) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 3,
                  period => 5},
+    BrodcastDispatcher = #{
+        id => dispatcher,
+        start => {broadcast_dispatcher, start, []},
+        restart => permanent,
+        shutdown => brutal_kill
+    },
     CowboyListener = #{
         id => listener,
         start => {cowboy_listener, start, []},
         restart => permanent,
         shutdown => brutal_kill
     },
-    ChildSpecs = [CowboyListener],
+    ChildSpecs = [CowboyListener, BrodcastDispatcher],
     {ok, {SupFlags, ChildSpecs}}.
