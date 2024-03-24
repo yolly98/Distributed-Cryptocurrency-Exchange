@@ -7,8 +7,12 @@ class App extends Component {
   constructor(props) {
     super(props)
     this.state = {
+      user: null,
+      host: 'localhost',
+      port: 8082,
+      coin: null,
       balance: 0,
-      available_asset: 0,
+      available_assets: 0,
       market_value: 0,
       websocket: null
     }
@@ -28,9 +32,7 @@ class App extends Component {
     let user = document.getElementById('user-input').value
     let coin = document.getElementById('coin-input').value
     let keepalive = 45000
-    let host = 'localhost'
-    let port = '8082'
-    let url = 'http://' + host + ':' + port + '/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
+    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
   
     fetch(url, {
       method : 'GET',
@@ -43,30 +45,64 @@ class App extends Component {
     ).then(
       json => {
         let balance = json.balance
-        let available_asset = 0
+        let available_assets = 0
         
         if (!Array.isArray(json.assets)) 
-          available_asset = json.assets
-        // console.log(`${balance} ${available_asset}`) // TEST
+          available_assets = json.assets
+        // console.log(`${balance} ${available_assets}`) // TEST
 
         if (this.state.websocket)
           this.state.websocket.close()
-        let websocket = new Socket(host, port, this.socketCallback, keepalive) 
-        this.setState({balance, available_asset, websocket})
+        let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
+        this.setState({balance, available_assets, websocket, user, coin})
       }
     ).catch( err => {
       console.error(err)
     })
   }
 
+  operation = async (type) => {
+    console.log(type)
+    let quantity = document.getElementById(type + '-input').value
+    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
+  
+    const request = {
+      opcode: type,
+      user: this.state.user,
+      coin: this.state.coin,
+      quantity: quantity
+    }
+    const response = await fetch(url, {
+      method : 'POST',
+      headers: {
+        'Content-type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(request)
+    })
 
+    if (response.status != 200) {
+      alert('Internal server error')
+      return
+    } 
 
-  sell = () => {
-    console.log('sell')
-  }
+    const json = await response.json()
+    let balance = json.balance
+    let available_assets = 0
+    
+    if (!Array.isArray(json.assets)) 
+      available_assets = json.assets
 
-  buy = () => {
-    console.log('buy')
+    if (json.state == 'failed') {
+      if (type == 'sell' && this.state.available_assets < quantity)
+        alert('Not enough assets to sell')
+      else if (type == 'buy' && this.state.balance < quantity)
+        alert('Not enough money to buy')
+      else
+        alert('Operation failed')
+    }
+
+    this.setState({balance, available_assets})
   }
 
   render() {
@@ -83,20 +119,20 @@ class App extends Component {
           </div>
 
           <label id='balance'>Balance: {this.state.balance}€</label>
-          <label id='available-cryptos'>Assets: {this.state.available_asset}</label>
+          <label id='available-cryptos'>Assets: {this.state.available_assets}</label>
 
           <h2>Operations</h2>
           <label id='market-value'>Crypto Market Value: {this.state.market_value}€</label>
           <div id='op-container'>
             <div className='op'>
               <h3>Buy</h3>
-              <input type='number' placeholder='Amount (euro)'></input>
-              <button onClick={() => this.buy()}>BUY</button>
+              <input id='buy-input' type='number' placeholder='Amount (euro)'></input>
+              <button onClick={() => this.operation('buy')}>BUY</button>
             </div>
             <div className='op'>
               <h3>Sell</h3>
-              <input type='number' placeholder='Amount (crypto)'></input>
-              <button onClick={() => this.sell()}>SELL</button>
+              <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
+              <button onClick={() => this.operation('sell')}>SELL</button>
             </div>
           </div>
         </div>

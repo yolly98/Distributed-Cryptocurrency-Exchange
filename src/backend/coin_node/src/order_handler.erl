@@ -9,7 +9,10 @@
 ]).
 
 init(Req, Opts) ->
-	{cowboy_rest, Req, Opts}.
+    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"POST, OPTIONS">>, Req),
+    Req2 = cowboy_req:set_resp_header(<<"access-control-allow-headers">>, <<"content-type, accept">>, Req1),
+    Req3 = cowboy_req:set_resp_header(<<"access-control-allow-origin">>, <<$*>>, Req2),
+	{cowboy_rest, Req3, Opts}.
 
 allowed_methods(Req, State) ->
 	{[<<"POST">>], Req, State}.
@@ -59,7 +62,7 @@ post_handler(Req, State) ->
                     ok
             end
         end, RegisteredPids),
-        Req2 = cowboy_req:set_resp_body(jsone:encode(#{<<"operation">> => <<"success">>, <<"deposit">> => Deposit, <<"asset">> => Asset}), Req1),
+        Req2 = cowboy_req:set_resp_body(jsone:encode(#{<<"status">> => <<"success">>, <<"balance">> => Deposit, <<"asset">> => Asset}), Req1),
         {true, Req2, State}
     catch
         error:_ ->
@@ -68,6 +71,6 @@ post_handler(Req, State) ->
                 {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                 {EffectiveDeposit, EffectiveAsset}
             end),
-            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"operation">> => <<"failed">>, <<"deposit">> => EffectiveDeposit, <<"asset">> => EffectiveAsset}), Req1),
+            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"status">> => <<"failed">>, <<"balance">> => EffectiveDeposit, <<"asset">> => EffectiveAsset}), Req1),
             {halt, Req3, State}
     end.
