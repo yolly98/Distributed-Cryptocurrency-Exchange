@@ -1,5 +1,6 @@
 import '../css/App.css'
 import { Component } from 'react'
+import { Socket } from '../../utility/Socket'
 
 class App extends Component {
 
@@ -8,15 +9,29 @@ class App extends Component {
     this.state = {
       balance: 0,
       available_asset: 0,
-      market_value: 0
+      market_value: 0,
+      websocket: null
+    }
+  }
+
+  socketCallback = (message) => {
+    console.log("received " + JSON.stringify(message)) // TEST
+    switch (message.opcode) {
+      case 'new_market_value':
+        let market_value = message.market_value
+        this.setState({market_value})
+        break
     }
   }
 
   login = () => {
     let user = document.getElementById('user-input').value
     let coin = document.getElementById('coin-input').value
-    let url = 'http://localhost:8082/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
-
+    let keepalive = 45000
+    let host = 'localhost'
+    let port = '8082'
+    let url = 'http://' + host + ':' + port + '/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
+  
     fetch(url, {
       method : 'GET',
       headers: {
@@ -33,12 +48,18 @@ class App extends Component {
         if (!Array.isArray(json.assets)) 
           available_asset = json.assets
         // console.log(`${balance} ${available_asset}`) // TEST
-        this.setState({balance, available_asset})
+
+        if (this.state.websocket)
+          this.state.websocket.close()
+        let websocket = new Socket(host, port, this.socketCallback, keepalive) 
+        this.setState({balance, available_asset, websocket})
       }
     ).catch( err => {
       console.error(err)
     })
   }
+
+
 
   sell = () => {
     console.log('sell')

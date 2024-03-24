@@ -14,7 +14,7 @@ loop() ->
                 {ws, Node, Pid} ->
                     if
                         Node == node() ->
-                            Msg = jsone:encode(#{<<"coin">> => list_to_binary(Coin), <<"market_value">> => MarketValue}),
+                            Msg = jsone:encode(#{<<"opcode">> => <<"new_market_value">>, <<"coin">> => list_to_binary(Coin), <<"market_value">> => MarketValue}),
                             Pid ! {broadcast, Msg};
                         Node =/= node() ->
                             ok
