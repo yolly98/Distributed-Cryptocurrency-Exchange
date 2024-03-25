@@ -1,6 +1,8 @@
 import '../css/App.css'
 import { Component } from 'react'
 import { Socket } from '../../utility/Socket'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faRectangleXmark } from '@fortawesome/free-solid-svg-icons'
 
 class App extends Component {
 
@@ -16,7 +18,86 @@ class App extends Component {
       market_value: 0,
       websocket: null,
       market_operations: [
-        
+        {
+          key: 666,
+          market_value: 24.678,
+          quantity: 234,
+          timestamp: '45:23:02',
+          color: 'black'
+        },
+        {
+          key: 666,
+          market_value: 24.678,
+          quantity: 234,
+          timestamp: '45:23:02',
+          color: 'black'
+        },
+        {
+          key: 666,
+          market_value: 24.678,
+          quantity: 234,
+          timestamp: '45:23:02',
+          color: 'black'
+        },
+        {
+          key: 666,
+          market_value: 24.678,
+          quantity: 234,
+          timestamp: '45:23:02',
+          color: 'black'
+        },
+        {
+          key: 666,
+          market_value: 24.678,
+          quantity: 234,
+          timestamp: '45:23:02',
+          color: 'black'
+        }
+      ],
+      market_operations_limit: 20,
+      pending_orders: [
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        },
+        {
+          key: 666,
+          type: 'sell',
+          quantity: 234,
+          timestamp: '45:23:02',
+        }
       ]
     }
   }
@@ -71,6 +152,10 @@ class App extends Component {
               else
                 market_operations[i - 1].color = 'red'
             }
+
+            // check the transaction list limit
+            if (market_operations.length > this.state.market_operations_limit)
+              market_operations.pop()
           })
         }
         this.setState({market_value, market_operations})
@@ -150,6 +235,8 @@ class App extends Component {
         alert('Not enough money to buy')
       else
         alert('Operation failed')
+    } else {
+      // create new order in pending order panel
     }
 
     this.setState({balance, available_assets})
@@ -185,25 +272,48 @@ class App extends Component {
               <button onClick={() => this.operation('sell')}>SELL</button>
             </div>
           </div>
-          <h2>Market Operations</h2>
-          <div id='transaction-list-container'>
-            <div className='transaction-container'>
-              <label style={{fontWeight: 'bold'}} className='transaction-label'>Price</label>
-              <label style={{fontWeight: 'bold'}} className='transaction-label'>Quantity</label>
-              <label style={{fontWeight: 'bold'}} className='transaction-label'>Time</label>
+          <div id='real-time-info-container'>
+            <div id='transaction-list-container'>
+              <h2>Market Operations</h2>
+              <div className='transaction-container'>
+                <label style={{fontWeight: 'bold'}} className='transaction-label'>Price</label>
+                <label style={{fontWeight: 'bold'}} className='transaction-label'>Quantity</label>
+                <label style={{fontWeight: 'bold'}} className='transaction-label'>Time</label>
+              </div>
+              {
+                this.state.market_operations.map(transaction => (
+                  <div
+                    key = {transaction.key}
+                    className='transaction-container'
+                  >
+                    <label className='transaction-label' style={{color: transaction.color}}>{parseFloat(transaction.market_value.toFixed(6))}</label>
+                    <label className='transaction-label'>{parseFloat(transaction.quantity.toFixed(6))}</label>
+                    <label className='transaction-label'>{transaction.timestamp}</label>
+                  </div>
+                ))
+              }
             </div>
-            {
-              this.state.market_operations.map(transaction => (
-                <div
-                  key = {transaction.key}
-                  className='transaction-container'
-                >
-                  <label className='transaction-label' style={{color: transaction.color}}>{parseFloat(transaction.market_value.toFixed(6))}</label>
-                  <label className='transaction-label'>{parseFloat(transaction.quantity.toFixed(6))}</label>
-                  <label className='transaction-label'>{transaction.timestamp}</label>
-                </div>
-              ))
-            }
+            <div id='order-list-container'>
+            <h2>Pending Orders</h2>
+              <div className='order-container'>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Type</label>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Quantity</label>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Time</label>
+              </div>
+                {
+                  this.state.pending_orders.map(order => (
+                    <div
+                      key = {order.key}
+                      className='order-container'
+                    >
+                      <label className='order-label'>{order.type}</label>
+                      <label className='order-label'>{parseFloat(order.quantity.toFixed(6))}</label>
+                      <label className='order-label'>{order.timestamp}</label>
+                      <FontAwesomeIcon icon={faRectangleXmark} />
+                    </div>
+                  ))
+                }
+            </div>
           </div>
         </div>
       </div>
