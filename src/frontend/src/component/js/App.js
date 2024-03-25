@@ -63,7 +63,7 @@ class App extends Component {
 
   operation = async (type) => {
     console.log(type)
-    let quantity = document.getElementById(type + '-input').value
+    let quantity = parseFloat(document.getElementById(type + '-input').value)
     const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
     const request = {
@@ -89,9 +89,9 @@ class App extends Component {
     const json = await response.json()
     let balance = json.balance
     let available_assets = 0
-    
+
     if (!Array.isArray(json.assets)) 
-      available_assets = json.assets
+      available_assets = json.asset
 
     if (json.state == 'failed') {
       if (type == 'sell' && this.state.available_assets < quantity)

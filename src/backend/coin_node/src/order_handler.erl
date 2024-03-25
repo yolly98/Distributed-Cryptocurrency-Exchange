@@ -15,7 +15,7 @@ init(Req, Opts) ->
 	{cowboy_rest, Req3, Opts}.
 
 allowed_methods(Req, State) ->
-	{[<<"POST">>], Req, State}.
+	{[<<"POST">>, <<"OPTIONS">>], Req, State}.
 
 content_types_accepted(Req, State) ->
 	{[
@@ -33,7 +33,7 @@ post_handler(Req, State) ->
     OpCode = binary_to_list(BinaryOpCode),
     User = binary_to_list(BinaryUser),
     Coin = binary_to_list(BinaryCoin),
-
+    
     try
         case OpCode of
             "sell" ->
