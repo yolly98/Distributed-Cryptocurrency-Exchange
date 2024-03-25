@@ -178,7 +178,7 @@ sub_asset(UserId, CoinId, Quantity) ->
             error;
         false ->
             [Asset | _] = Assets,
-            NewQuantity = round_decimal(Asset#asset.quantity - Quantity, 8),
+            NewQuantity = Asset#asset.quantity - Quantity,
             if 
                 NewQuantity >= 0 ->
                     ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=NewQuantity});
@@ -254,16 +254,13 @@ insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
     Transactions = mnesia:select(transaction, [{TransactionRecord, Guards, ['$_']}]),
     case Transactions == [] of
         true -> 
-            ok = mnesia:write(#transaction{transaction_key=#transaction_key{timestamp=Timestamp, seller=Seller, buyer=Buyer, coin_id=CoinId}, coins=Coins, market_value=MarketValue});
+            ok = mnesia:write(#transaction{transaction_key=#transaction_key{timestamp=Timestamp, seller=Seller, buyer=Buyer, coin_id=CoinId}, coins=Coins, market_value=MarketValue}),
+            {ok, Timestamp};
         false ->
             error
     end.
 
 % -------------------------- BUSINESS LOGIC --------------------------
-
-round_decimal(Number, Precision) -> %TODO spostare su util
-    Factor = math:pow(10, Precision),
-    round(Number * Factor) / Factor.
 
 convert_asset_to_currency(MarketValue, Quantity) ->
     MarketValue * Quantity.
@@ -296,26 +293,27 @@ update_market_value(MarketValue, Type, CoinId, Quantity) ->
     NewMarketValue.
 
 complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency) ->
-    complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency, 0).
+    complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency, 0, []).
 
-complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset) ->
+complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset, CompletedTransactions) ->
     ok = update_coin(CoinId, MarketValue),
     if 
         PlacedCurrency > 0 -> ok = insert_new_order(UserId, "buy", CoinId, PlacedCurrency);
         PlacedCurrency =< 0 -> ok
     end,
-    ok = add_asset(UserId, CoinId, BoughtAsset);
+    ok = add_asset(UserId, CoinId, BoughtAsset),
+    {ok, CompletedTransactions};
 
-complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset) ->
+complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset, CompletedTransactions) ->
     {_, OrderKey, _, _, Quantity} = Order,
     {ok, Seller} = get_user(OrderKey#order_key.user_id),
     SellableCurrency = erlang:min(convert_asset_to_currency(MarketValue, Quantity), PlacedCurrency),
     SellableAsset = convert_currency_to_asset(MarketValue, SellableCurrency),
 
-    NewOrderQuantity = round_decimal(Quantity - SellableAsset, 8),
+    NewOrderQuantity = Quantity - SellableAsset,
     NewSellerDeposit = Seller#user.deposit + SellableCurrency,
     NewMarketValue = update_market_value(MarketValue, "sell", CoinId, SellableAsset),
-    NewPlacedCurrency = round_decimal(PlacedCurrency - SellableCurrency, 8),
+    NewPlacedCurrency = PlacedCurrency - SellableCurrency,
 
     if
         NewOrderQuantity == 0 -> ok = delete_order(OrderKey, CoinId);
@@ -323,73 +321,97 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         NewOrderQuantity < 0 -> error
     end,
     ok = update_deposit(Seller#user.id, NewSellerDeposit),
-    ok = insert_new_transaction(Seller#user.id, UserId, CoinId, SellableAsset, MarketValue),
+    {ok, Timestamp} = insert_new_transaction(Seller#user.id, UserId, CoinId, SellableAsset, MarketValue),
+    CompletedTransaction = #{
+        <<"seller">> => list_to_binary(Seller#user.id), 
+        <<"buyer">> => list_to_binary(UserId),
+        <<"coin">> => list_to_binary(CoinId),
+        <<"quantity">> => SellableAsset,
+        <<"market_value">> => MarketValue,
+        <<"timestamp">> => Timestamp
+    },
 
     if  
-        NewPlacedCurrency == 0 orelse RemainingOrders == [] -> complete_sell_order([], UserId, CoinId, NewMarketValue, NewPlacedCurrency, BoughtAsset + SellableAsset);
-        NewPlacedCurrency =/= 0 -> complete_sell_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedCurrency, BoughtAsset + SellableAsset)
+        NewPlacedCurrency == 0 orelse RemainingOrders == [] -> complete_sell_order([], UserId, CoinId, NewMarketValue, NewPlacedCurrency, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction]);
+        NewPlacedCurrency =/= 0 -> complete_sell_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedCurrency, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction])
     end.
 
 buy(UserId, CoinId, PlacedCurrency) ->
     {ok, User} = get_user(UserId),
     Deposit = User#user.deposit,
     if 
-        Deposit < PlacedCurrency -> error;
+        Deposit < PlacedCurrency -> 
+            error;
         Deposit >= PlacedCurrency ->
-            NewDeposit = round_decimal(Deposit - PlacedCurrency, 8), 
+            NewDeposit = Deposit - PlacedCurrency, 
             ok = update_deposit(UserId, NewDeposit),
             {ok, MarketValue} = get_coin_value(CoinId),
             {ok, Orders} = get_orders_by_type(UserId, "sell", CoinId),
 
-            complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency)
+            {ok, CompletedTransactions} = complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency),
+            {ok, CompletedTransactions}
     end.
 
 complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset) ->
-    complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset, 0).
+    complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset, 0, []).
 
-complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency) ->
+complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency, CompletedTransactions) ->
     ok = update_coin(CoinId, MarketValue),
     {ok, User} = get_user(UserId),
     NewDeposit = User#user.deposit + EarnedCurrency,
     ok = update_deposit(UserId, NewDeposit),
     if 
-        PlacedAsset > 0 -> ok = insert_new_order(UserId, "sell", CoinId, PlacedAsset);
-        PlacedAsset == 0 -> ok;
-        PlacedAsset < 0 -> error
+        PlacedAsset > 0 -> 
+            ok = insert_new_order(UserId, "sell", CoinId, PlacedAsset),
+            {ok, CompletedTransactions};
+        PlacedAsset == 0 -> 
+            {ok, CompletedTransactions};
+        PlacedAsset < 0 -> 
+            error
     end;
 
-complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency) ->
+complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency, CompletedTransactions) ->
     {_, OrderKey, _, _, Quantity} = Order,
-    BuyableAsset = convert_currency_to_asset(MarketValue, Quantity),
-    BuyableCurrency = convert_asset_to_currency(MarketValue, erlang:min(BuyableAsset, PlacedAsset)),
+    BuyableAsset = erlang:min(convert_currency_to_asset(MarketValue, Quantity), PlacedAsset),
+    BuyableCurrency = convert_asset_to_currency(MarketValue, BuyableAsset),
 
-    NewOrderQuantity = round_decimal(Quantity - BuyableCurrency, 8),
+    NewOrderQuantity = Quantity - BuyableCurrency,
     ok = add_asset(OrderKey#order_key.user_id, CoinId, BuyableAsset), 
     NewMarketValue = update_market_value(MarketValue, "buy", CoinId, BuyableAsset),
-    NewPlacedAsset = round_decimal(PlacedAsset - BuyableAsset, 8),
+    NewPlacedAsset = PlacedAsset - BuyableAsset,
 
     if
         BuyableCurrency == Quantity -> ok = delete_order(OrderKey, CoinId);
         BuyableCurrency < Quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
     end,
 
-    ok = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),
+    {ok, Timestamp} = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),
+    CompletedTransaction = #{
+        <<"seller">> => list_to_binary(UserId), 
+        <<"buyer">> => list_to_binary(OrderKey#order_key.user_id),
+        <<"coin">> => list_to_binary(CoinId),
+        <<"quantity">> => BuyableAsset,
+        <<"market_value">> => MarketValue,
+        <<"timestamp">> => Timestamp
+    },
 
     if  
-        NewPlacedAsset == 0 orelse RemainingOrders == [] -> complete_buy_order([], UserId, CoinId, NewMarketValue, NewPlacedAsset, EarnedCurrency + BuyableCurrency);
-        NewPlacedAsset =/= 0 -> complete_buy_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedAsset, EarnedCurrency + BuyableCurrency)
+        NewPlacedAsset == 0 orelse RemainingOrders == [] -> complete_buy_order([], UserId, CoinId, NewMarketValue, NewPlacedAsset, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction]);
+        NewPlacedAsset =/= 0 -> complete_buy_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedAsset, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction])
     end.
 
 sell(UserId, CoinId, PlacedAsset) ->
     {ok, Asset} = get_asset(UserId, CoinId),
     AssetQuantity = Asset#asset.quantity,
     if
-        AssetQuantity < PlacedAsset -> error;
+        AssetQuantity < PlacedAsset -> 
+            error;
         AssetQuantity >= PlacedAsset ->
             ok = sub_asset(UserId, CoinId, PlacedAsset),
             {ok, Orders} = get_orders_by_type(UserId, "buy", CoinId),
             {ok, MarketValue} = get_coin_value(CoinId),
 
-            ok = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset)
+            {ok, CompletedTransactions} = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset),
+            {ok, CompletedTransactions}
     end.
         

@@ -7,14 +7,19 @@ start() ->
     loop().
 
 loop() ->
-    receive {update_market_value, Coin, MarketValue} ->
+    receive {update_market_value, Coin, MarketValue, CompletedTransactions} ->
         RegisteredPids = global:registered_names(),
         lists:foreach(fun(RegisteredPid) ->
             case RegisteredPid of
                 {ws, Node, Pid} ->
                     if
                         Node == node() ->
-                            Msg = jsone:encode(#{<<"opcode">> => <<"new_market_value">>, <<"coin">> => list_to_binary(Coin), <<"market_value">> => MarketValue}),
+                            Msg = jsone:encode(#{
+                                <<"opcode">> => <<"new_placed_order">>,
+                                <<"coin">> => list_to_binary(Coin), 
+                                <<"market_value">> => MarketValue,
+                                <<"transactions">> => CompletedTransactions
+                            }),
                             Pid ! {broadcast, Msg};
                         Node =/= node() ->
                             ok
