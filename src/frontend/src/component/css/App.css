@@ -57,3 +57,23 @@ button{
   border: 0.2rem solid black;
   padding: 1rem;
 }
+
+#transaction-list-container{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 50%;
+  padding: 2rem;
+}
+
+.transaction-container{
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.transaction-label{
+  text-align: center;
+  width: 33%;
+}

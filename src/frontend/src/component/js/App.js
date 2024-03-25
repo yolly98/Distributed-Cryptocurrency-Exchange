@@ -14,16 +14,66 @@ class App extends Component {
       balance: 0,
       available_assets: 0,
       market_value: 0,
-      websocket: null
+      websocket: null,
+      market_operations: [
+        
+      ]
     }
   }
 
   socketCallback = (message) => {
-    console.log("received " + JSON.stringify(message)) // TEST
+    console.log(message) // TEST
     switch (message.opcode) {
-      case 'new_market_value':
+      case 'new_placed_order':
         let market_value = message.market_value
-        this.setState({market_value})
+        let market_operations = [...this.state.market_operations]
+
+        if (message.transactions.length > 0) {
+          message.transactions.forEach(transaction => {
+            // create new transaction
+            let date = new Date(transaction.timestamp / 1000000)
+            let new_transaction = {
+              key: transaction.timestamp,
+              market_value: transaction.market_value,
+              quantity: transaction.quantity,
+              timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`,
+              color: 'black'
+            }
+
+            // find position in the transaction list and set the color
+            let i = 0
+            while (i < market_operations.length) {
+              if (market_operations[i].key < new_transaction.key) {
+                if (new_transaction.market_value > market_operations[i].market_value)
+                  new_transaction.color = 'green'
+                else if (new_transaction.market_value == market_operations[i].market_value)
+                  new_transaction.color = market_operations[i].color
+                else
+                  new_transaction.color = 'red'
+                break
+              }
+              i++
+            }
+
+            // insert the new transaction in the transaction list
+            market_operations = [
+              ...market_operations.slice(0, i),
+              new_transaction,
+              ...market_operations.slice(i)
+            ] 
+
+            // update color of the transaction before the new one
+            if (i > 0) {
+              if (market_operations[i - 1].market_value > market_operations[i].market_value)
+                market_operations[i - 1].color = 'green'
+              else if (market_operations[i - 1].market_value == market_operations[i].market_value)
+                market_operations[i - 1].color = market_operations[i].color
+              else
+                market_operations[i - 1].color = 'red'
+            }
+          })
+        }
+        this.setState({market_value, market_operations})
         break
     }
   }
@@ -122,7 +172,7 @@ class App extends Component {
           <label id='available-cryptos'>Assets: {this.state.available_assets}</label>
 
           <h2>Operations</h2>
-          <label id='market-value'>Crypto Market Value: {this.state.market_value}€</label>
+          <label id='market-value'>Crypto Market Value: {parseFloat(this.state.market_value.toFixed(6))}€</label>
           <div id='op-container'>
             <div className='op'>
               <h3>Buy</h3>
@@ -134,6 +184,26 @@ class App extends Component {
               <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
               <button onClick={() => this.operation('sell')}>SELL</button>
             </div>
+          </div>
+          <h2>Market Operations</h2>
+          <div id='transaction-list-container'>
+            <div className='transaction-container'>
+              <label style={{fontWeight: 'bold'}} className='transaction-label'>Price</label>
+              <label style={{fontWeight: 'bold'}} className='transaction-label'>Quantity</label>
+              <label style={{fontWeight: 'bold'}} className='transaction-label'>Time</label>
+            </div>
+            {
+              this.state.market_operations.map(transaction => (
+                <div
+                  key = {transaction.key}
+                  className='transaction-container'
+                >
+                  <label className='transaction-label' style={{color: transaction.color}}>{parseFloat(transaction.market_value.toFixed(6))}</label>
+                  <label className='transaction-label'>{parseFloat(transaction.quantity.toFixed(6))}</label>
+                  <label className='transaction-label'>{transaction.timestamp}</label>
+                </div>
+              ))
+            }
           </div>
         </div>
       </div>
