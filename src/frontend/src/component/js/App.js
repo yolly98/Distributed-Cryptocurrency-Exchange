@@ -17,89 +17,44 @@ class App extends Component {
       available_assets: 0,
       market_value: 0,
       websocket: null,
-      market_operations: [
-        {
-          key: 666,
-          market_value: 24.678,
-          quantity: 234,
-          timestamp: '45:23:02',
-          color: 'black'
-        },
-        {
-          key: 666,
-          market_value: 24.678,
-          quantity: 234,
-          timestamp: '45:23:02',
-          color: 'black'
-        },
-        {
-          key: 666,
-          market_value: 24.678,
-          quantity: 234,
-          timestamp: '45:23:02',
-          color: 'black'
-        },
-        {
-          key: 666,
-          market_value: 24.678,
-          quantity: 234,
-          timestamp: '45:23:02',
-          color: 'black'
-        },
-        {
-          key: 666,
-          market_value: 24.678,
-          quantity: 234,
-          timestamp: '45:23:02',
-          color: 'black'
-        }
-      ],
+      market_operations: [],
       market_operations_limit: 20,
-      pending_orders: [
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        },
-        {
-          key: 666,
-          type: 'sell',
-          quantity: 234,
-          timestamp: '45:23:02',
-        }
-      ]
+      pending_orders: []
     }
+  }
+  /*
+  let new_pending_order = {
+    key: json.new_pending_order.timestamp,
+    type: type,
+    quantity: json.new_pending_order.quantity,
+    timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
+  }
+
+      CompletedTransaction = #{
+        <<"seller">> => list_to_binary(UserId), 
+        <<"buyer">> => list_to_binary(OrderKey#order_key.user_id),
+        <<"coin">> => list_to_binary(CoinId),
+        <<"quantity">> => BuyableAsset,
+        <<"market_value">> => MarketValue,
+        <<"timestamp">> => Timestamp,
+        <<"order_type">> => <<"buy">>,
+        <<"order_timestamp">> => Order#order_key.timestamp
+    },
+*/
+  update_pending_orders = (transaction) => {
+    let pending_orders = [...this.state.pending_orders]
+
+    for (let i = 0; i < pending_orders.length; i++) {
+      if (transaction.order_type == pending_orders[i].type && transaction.order_timestamp == pending_orders[i].key && (transaction.seller == this.state.user || transaction.buyer == this.state.user)) {
+        if (transaction.order_type == 'buy')
+          pending_orders[i].quantity -= transaction.quantity * transaction.market_value
+        else
+          pending_orders[i].quantity -= transaction.quantity
+      }
+    }
+
+    pending_orders = pending_orders.filter(function (pending_order) { return pending_order.quantity > 0 })
+    this.setState({pending_orders})
   }
 
   socketCallback = (message) => {
@@ -156,6 +111,8 @@ class App extends Component {
             // check the transaction list limit
             if (market_operations.length > this.state.market_operations_limit)
               market_operations.pop()
+
+            this.update_pending_orders(transaction)
           })
         }
         this.setState({market_value, market_operations})
@@ -197,7 +154,6 @@ class App extends Component {
   }
 
   operation = async (type) => {
-    console.log(type)
     let quantity = parseFloat(document.getElementById(type + '-input').value)
     const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
@@ -225,6 +181,7 @@ class App extends Component {
     let balance = json.balance
     let available_assets = 0
 
+    console.log(json) // TEST
     if (!Array.isArray(json.assets)) 
       available_assets = json.asset
 
@@ -237,6 +194,20 @@ class App extends Component {
         alert('Operation failed')
     } else {
       // create new order in pending order panel
+      if (!Array.isArray(json.new_pending_order)) {
+        let date = new Date(json.new_pending_order.timestamp / 1000000)
+        let new_pending_order = {
+          key: json.new_pending_order.timestamp,
+          type: type,
+          quantity: json.new_pending_order.quantity,
+          timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
+        }
+        let pending_orders = [
+          new_pending_order,
+          ...this.state.pending_orders
+        ]
+        this.setState({pending_orders})
+      }
     }
 
     this.setState({balance, available_assets})

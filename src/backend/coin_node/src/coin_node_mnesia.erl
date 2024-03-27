@@ -210,7 +210,8 @@ insert_new_order(UserId, Type, CoinId, Quantity) ->
     Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
     case Orders == [] of
         true -> 
-            ok = mnesia:write({Table, {order_key, Timestamp, UserId}, Type, CoinId, Quantity});
+            ok = mnesia:write({Table, {order_key, Timestamp, UserId}, Type, CoinId, Quantity}),
+            {ok, Timestamp};
         false ->
             error
     end.
@@ -298,11 +299,14 @@ complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency) ->
 complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset, CompletedTransactions) ->
     ok = update_coin(CoinId, MarketValue),
     if 
-        PlacedCurrency > 0 -> ok = insert_new_order(UserId, "buy", CoinId, PlacedCurrency);
-        PlacedCurrency =< 0 -> ok
+        PlacedCurrency > 0 -> 
+            {ok, PendingOrderTimestamp} = insert_new_order(UserId, "buy", CoinId, PlacedCurrency),
+            PendingOrder = #{<<"timestamp">> => PendingOrderTimestamp, <<"quantity">> => PlacedCurrency};
+        PlacedCurrency =< 0 -> 
+            PendingOrder = []
     end,
     ok = add_asset(UserId, CoinId, BoughtAsset),
-    {ok, CompletedTransactions};
+    {ok, CompletedTransactions, PendingOrder};
 
 complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset, CompletedTransactions) ->
     {_, OrderKey, _, _, Quantity} = Order,
@@ -328,7 +332,9 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => SellableAsset,
         <<"market_value">> => MarketValue,
-        <<"timestamp">> => Timestamp
+        <<"timestamp">> => Timestamp,
+        <<"order_type">> => <<"sell">>,
+        <<"order_timestamp">> => OrderKey#order_key.timestamp
     },
 
     if  
@@ -348,8 +354,8 @@ buy(UserId, CoinId, PlacedCurrency) ->
             {ok, MarketValue} = get_coin_value(CoinId),
             {ok, Orders} = get_orders_by_type(UserId, "sell", CoinId),
 
-            {ok, CompletedTransactions} = complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency),
-            {ok, CompletedTransactions}
+            {ok, CompletedTransactions, NewPendingOrder} = complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency),
+            {ok, CompletedTransactions, NewPendingOrder}
     end.
 
 complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset) ->
@@ -362,10 +368,11 @@ complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency,
     ok = update_deposit(UserId, NewDeposit),
     if 
         PlacedAsset > 0 -> 
-            ok = insert_new_order(UserId, "sell", CoinId, PlacedAsset),
-            {ok, CompletedTransactions};
+            {ok, PendingOrderTimestamp} = insert_new_order(UserId, "sell", CoinId, PlacedAsset),
+            PendingOrder = #{<<"timestamp">> => PendingOrderTimestamp, <<"quantity">> => PlacedAsset},
+            {ok, CompletedTransactions, PendingOrder};
         PlacedAsset == 0 -> 
-            {ok, CompletedTransactions};
+            {ok, CompletedTransactions, []};
         PlacedAsset < 0 -> 
             error
     end;
@@ -392,7 +399,9 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => BuyableAsset,
         <<"market_value">> => MarketValue,
-        <<"timestamp">> => Timestamp
+        <<"timestamp">> => Timestamp,
+        <<"order_type">> => <<"buy">>,
+        <<"order_timestamp">> => OrderKey#order_key.timestamp
     },
 
     if  
@@ -411,7 +420,7 @@ sell(UserId, CoinId, PlacedAsset) ->
             {ok, Orders} = get_orders_by_type(UserId, "buy", CoinId),
             {ok, MarketValue} = get_coin_value(CoinId),
 
-            {ok, CompletedTransactions} = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset),
-            {ok, CompletedTransactions}
+            {ok, CompletedTransactions, NewPendingOrder} = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset),
+            {ok, CompletedTransactions, NewPendingOrder}
     end.
         

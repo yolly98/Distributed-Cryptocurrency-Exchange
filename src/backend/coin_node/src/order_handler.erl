@@ -37,20 +37,20 @@ post_handler(Req, State) ->
     try
         case OpCode of
             "sell" ->
-                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions} = coin_node_mnesia:sell(User, Coin, Quantity),
+                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
+                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:sell(User, Coin, Quantity),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
                     {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                     {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
-                    {Deposit, Asset, MarketValue, CompletedTransactions}
+                    {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}
                 end);
             "buy" ->
-                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions} = coin_node_mnesia:buy(User, Coin, Quantity),
+                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
+                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:buy(User, Coin, Quantity),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
                     {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                     {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
-                    {Deposit, Asset, MarketValue, CompletedTransactions}
+                    {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}
                 end)
         end,
         RegisteredPids = global:registered_names(),
@@ -65,7 +65,8 @@ post_handler(Req, State) ->
         Req2 = cowboy_req:set_resp_body(jsone:encode(#{
             <<"status">> => <<"success">>,
             <<"balance">> => Deposit,
-            <<"asset">> => Asset
+            <<"asset">> => Asset,
+            <<"new_pending_order">> => NewPendingOrder
         }), Req1),
         {true, Req2, State}
     catch
