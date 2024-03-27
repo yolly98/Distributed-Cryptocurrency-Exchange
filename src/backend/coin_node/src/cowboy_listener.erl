@@ -5,6 +5,7 @@
 start() ->
     Dispatch = cowboy_router:compile([
         {'_', [
+            {"/api/transaction", transaction_handler, []},
             {"/api/order", order_handler, []},
             {"/api/wallet", wallet_handler, []},
             {"/websocket", websocket_handler, []}

@@ -4,28 +4,62 @@
     init/2,
     content_types_accepted/2,
     content_types_provided/2,
+    request_dispatcher/2,
+    get_handler/2,
     post_handler/2,
     allowed_methods/2
 ]).
 
 init(Req, Opts) ->
-    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"POST, OPTIONS">>, Req),
+    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"GET, POST, OPTIONS">>, Req),
     Req2 = cowboy_req:set_resp_header(<<"access-control-allow-headers">>, <<"content-type, accept">>, Req1),
     Req3 = cowboy_req:set_resp_header(<<"access-control-allow-origin">>, <<$*>>, Req2),
 	{cowboy_rest, Req3, Opts}.
 
 allowed_methods(Req, State) ->
-	{[<<"POST">>, <<"OPTIONS">>], Req, State}.
+	{[<<"GET">>, <<"POST">>, <<"OPTIONS">>], Req, State}.
 
 content_types_accepted(Req, State) ->
 	{[
-        {<<"application/json">>, post_handler}
+        {<<"application/json">>, request_dispatcher}
     ], Req, State}.
 
 content_types_provided(Req, State) ->
 	{[
-		{<<"application/json">>, post_handler}
+		{<<"application/json">>, request_dispatcher}
 	], Req, State}.
+
+request_dispatcher(Req, State) -> 
+    case cowboy_req:method(Req) of
+        <<"GET">> ->
+            get_handler(Req, State);
+		_ ->
+			post_handler(Req, State)
+		end.
+
+prepare_pending_orders(Orders) ->
+    prepare_pending_orders(Orders, []).
+
+prepare_pending_orders([], PendingOrders) ->
+    {ok, PendingOrders};
+
+prepare_pending_orders([Order | RemainingOrders], PendingOrders) ->
+    {_, {_, Timestamp, _}, Type, _, Quantity} = Order,
+    PendingOrder = #{
+        <<"timestamp">> => Timestamp,
+        <<"type">> => list_to_binary(Type),
+        <<"quantity">> => Quantity
+    },
+    prepare_pending_orders(RemainingOrders, PendingOrders ++ [PendingOrder]).
+
+get_handler(Req, State) ->
+    #{user := BinaryUser, coin := BinaryCoin} = cowboy_req:match_qs([{user, nonempty}, {coin, nonempty}], Req),
+    User = binary_to_list(BinaryUser),
+    Coin = binary_to_list(BinaryCoin),
+    {atomic, {ok, Orders}} = mnesia:transaction(fun() -> coin_node_mnesia:get_pending_orders(User, Coin) end),
+    {ok, PendingOrders} = prepare_pending_orders(Orders),
+    Reply = jsone:encode(#{<<"orders">> => PendingOrders}),
+    {Reply, Req, State}.
 
 post_handler(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),

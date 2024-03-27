@@ -22,10 +22,12 @@
     update_order_quantity/3,
     delete_order/2, 
     insert_new_transaction/5,
+    get_transactions_history/2,
     get_user/1,
     get_deposit/1,
     update_deposit/2,
     get_coin_value/1,
+    get_pending_orders/2,
     get_orders_by_type/3,
     get_assets_by_user/1,
     get_asset_by_user/2,
@@ -216,6 +218,13 @@ insert_new_order(UserId, Type, CoinId, Quantity) ->
             error
     end.
 
+get_pending_orders(UserId, CoinId) ->
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
+    Guards = [{'==', '$2', UserId}, {'==', '$4', CoinId}],
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
+    {ok, Orders}.
+
 get_orders_by_type(UserId, Type, CoinId) ->
     Table = list_to_atom(CoinId ++ "_order"),
     OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
@@ -260,6 +269,13 @@ insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
         false ->
             error
     end.
+
+get_transactions_history(CoinId, Seconds) ->
+    MinTimestamp = os:system_time(nanosecond) - (Seconds * math:pow(10, 9)),
+    TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6'},
+    Guards = [{'==', '$4', CoinId}, {'>', '$1', MinTimestamp}],
+    Transactions = mnesia:select(transaction, [{TransactionRecord, Guards, ['$_']}]),
+    {ok, Transactions}.
 
 % -------------------------- BUSINESS LOGIC --------------------------
 

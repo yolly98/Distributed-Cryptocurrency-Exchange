@@ -22,25 +22,7 @@ class App extends Component {
       pending_orders: []
     }
   }
-  /*
-  let new_pending_order = {
-    key: json.new_pending_order.timestamp,
-    type: type,
-    quantity: json.new_pending_order.quantity,
-    timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
-  }
 
-      CompletedTransaction = #{
-        <<"seller">> => list_to_binary(UserId), 
-        <<"buyer">> => list_to_binary(OrderKey#order_key.user_id),
-        <<"coin">> => list_to_binary(CoinId),
-        <<"quantity">> => BuyableAsset,
-        <<"market_value">> => MarketValue,
-        <<"timestamp">> => Timestamp,
-        <<"order_type">> => <<"buy">>,
-        <<"order_timestamp">> => Order#order_key.timestamp
-    },
-*/
   update_pending_orders = (transaction) => {
     let pending_orders = [...this.state.pending_orders]
 
@@ -120,37 +102,61 @@ class App extends Component {
     }
   }
 
-  login = () => {
+  login = async () => {
     let user = document.getElementById('user-input').value
     let coin = document.getElementById('coin-input').value
     let keepalive = 45000
-    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
-  
-    fetch(url, {
+
+    // load wallet from backend
+    let url = 'http://' + this.state.host + ':' + this.state.port + '/api/wallet?user=' + user + '&coin=' + coin + '&balance=true'
+    let response = await fetch(url, {
       method : 'GET',
       headers: {
         'Content-type': 'application/json',
         'Accept': 'application/json'
       }
-    }).then(
-      response => response.json()
-    ).then(
-      json => {
-        let balance = json.balance
-        let available_assets = 0
-        
-        if (!Array.isArray(json.assets)) 
-          available_assets = json.assets
-        // console.log(`${balance} ${available_assets}`) // TEST
-
-        if (this.state.websocket)
-          this.state.websocket.close()
-        let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
-        this.setState({balance, available_assets, websocket, user, coin})
-      }
-    ).catch( err => {
-      console.error(err)
     })
+    let json = await response.json()
+    let balance = json.balance
+    let available_assets = 0
+    
+    if (!Array.isArray(json.assets)) 
+      available_assets = json.assets
+
+    // load pending orders from backend
+    url = 'http://' + this.state.host + ':' + this.state.port + '/api/order?user=' + user + '&coin=' + coin
+    response = await fetch(url, {
+      method : 'GET',
+      headers: {
+        'Content-type': 'application/json',
+        'Accept': 'application/json'
+      }
+    })
+    json = await response.json()
+
+    let pending_orders = []
+    if (Array.isArray(json.orders)) {
+      json.orders.forEach(pending_order => {
+        let date = new Date(pending_order.timestamp / 1000000)
+        let new_pending_order = {
+          key: pending_order.timestamp,
+          type: pending_order.type,
+          quantity: pending_order.quantity,
+          timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
+        }
+        pending_orders = [
+          new_pending_order,
+          ...pending_orders
+        ]
+      })
+    }
+
+    // open websocket to backend
+    if (this.state.websocket)
+      this.state.websocket.close()
+    let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
+
+    this.setState({balance, available_assets, websocket, user, coin, pending_orders})
   }
 
   operation = async (type) => {
