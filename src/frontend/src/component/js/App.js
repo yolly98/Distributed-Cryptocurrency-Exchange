@@ -23,6 +23,45 @@ class App extends Component {
     }
   }
 
+  deleteOrder = async (order) => {
+    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
+  
+    const request = {
+      user: this.state.user,
+      coin: this.state.coin,
+      timestamp: order.key
+    }
+    const response = await fetch(url, {
+      method : 'DELETE',
+      headers: {
+        'Content-type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(request)
+    })
+
+    if (response.status != 200) {
+      if (response.status == 500)
+        alert('Internal server error')
+      else
+        alert(`Unknown error [${response.status}]`)
+      return
+    } 
+    
+    let available_assets = this.state.available_assets
+    let balance = this.state.balance
+    let pending_orders = [...this.state.pending_orders]
+
+    if (order.type == 'sell') 
+      available_assets += order.quantity
+    else
+      balance += order.quantity
+    
+    pending_orders = pending_orders.filter(function (pending_order) { return pending_order.key != order.key })
+
+    this.setState({available_assets, balance, pending_orders})
+  }
+
   update_pending_orders = (transaction) => {
     let pending_orders = [...this.state.pending_orders]
 
@@ -49,7 +88,7 @@ class App extends Component {
         if (message.transactions.length > 0) {
           message.transactions.forEach(transaction => {
             // create new transaction
-            let date = new Date(transaction.timestamp / 1000000)
+            let date = new Date(parseInt(transaction.timestamp) / 1000000)
             let new_transaction = {
               key: transaction.timestamp,
               market_value: transaction.market_value,
@@ -116,6 +155,12 @@ class App extends Component {
         'Accept': 'application/json'
       }
     })
+
+    if (response.status != 200) {
+      alert('Login failed')
+      return
+    }
+
     let json = await response.json()
     let balance = json.balance
     let available_assets = 0
@@ -137,7 +182,7 @@ class App extends Component {
     let pending_orders = []
     if (Array.isArray(json.orders)) {
       json.orders.forEach(pending_order => {
-        let date = new Date(pending_order.timestamp / 1000000)
+        let date = new Date(parseInt(pending_order.timestamp) / 1000000)
         let new_pending_order = {
           key: pending_order.timestamp,
           type: pending_order.type,
@@ -203,7 +248,7 @@ class App extends Component {
     } else {
       // create new order in pending order panel
       if (!Array.isArray(json.new_pending_order)) {
-        let date = new Date(json.new_pending_order.timestamp / 1000000)
+        let date = new Date(parseInt(json.new_pending_order.timestamp) / 1000000)
         let new_pending_order = {
           key: json.new_pending_order.timestamp,
           type: type,
@@ -288,7 +333,7 @@ class App extends Component {
                       <label className='order-label'>{order.type}</label>
                       <label className='order-label'>{parseFloat(order.quantity.toFixed(6))}</label>
                       <label className='order-label'>{order.timestamp}</label>
-                      <FontAwesomeIcon icon={faRectangleXmark} />
+                      <FontAwesomeIcon style={{cursor: 'pointer'}} onClick={() => this.deleteOrder(order)} icon={faRectangleXmark} />
                     </div>
                   ))
                 }

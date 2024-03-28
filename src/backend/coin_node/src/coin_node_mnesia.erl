@@ -25,6 +25,7 @@
     get_transactions_history/2,
     get_user/1,
     get_deposit/1,
+    add_deposit/2,
     update_deposit/2,
     get_coin_value/1,
     get_pending_orders/2,
@@ -34,7 +35,8 @@
     get_asset/2,
     sub_asset/3,
     sell/3,
-    buy/3]).
+    buy/3
+]).
 
 % -------------------------- USER --------------------------
 
@@ -71,6 +73,19 @@ get_deposit(UserId) ->
         false ->
             [Deposit | _] = Deposits,
             {ok, Deposit}
+    end.
+
+add_deposit(UserId, Quantity) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
+    case Users == [] of
+        true -> 
+            error;
+        false ->
+            [User | _] = Users,
+            NewValue = User#user.deposit + Quantity,
+            ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
     end.
 
 update_deposit(UserId, NewValue) ->
@@ -253,7 +268,18 @@ update_order_quantity(OrderKey, CoinId, NewOrderQuantity) ->
     end.
 
 delete_order(OrderKey, CoinId) ->
-    ok = mnesia:delete({list_to_atom(CoinId ++ "_order"), OrderKey}).
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
+    Guards = [{'==', '$1', OrderKey#order_key.timestamp}, {'==', '$2', OrderKey#order_key.user_id}],
+    Orders = mnesia:select(Table, [{OrderRecord, Guards, ['$_']}]),
+    case Orders == [] of
+        true ->
+            error;
+        false ->
+            [Order | _] = Orders,
+            ok = mnesia:delete({list_to_atom(CoinId ++ "_order"), OrderKey}),
+            {ok, Order}
+    end.
 
 % -------------------------- TRANSACTION --------------------------
 
@@ -317,7 +343,10 @@ complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, BoughtAsset
     if 
         PlacedCurrency > 0 -> 
             {ok, PendingOrderTimestamp} = insert_new_order(UserId, "buy", CoinId, PlacedCurrency),
-            PendingOrder = #{<<"timestamp">> => PendingOrderTimestamp, <<"quantity">> => PlacedCurrency};
+            PendingOrder = #{
+                <<"timestamp">> => list_to_binary(integer_to_list(PendingOrderTimestamp)),
+                <<"quantity">> => PlacedCurrency
+            };
         PlacedCurrency =< 0 -> 
             PendingOrder = []
     end,
@@ -336,7 +365,7 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
     NewPlacedCurrency = PlacedCurrency - SellableCurrency,
 
     if
-        NewOrderQuantity == 0 -> ok = delete_order(OrderKey, CoinId);
+        NewOrderQuantity == 0 -> {ok, _} = delete_order(OrderKey, CoinId);
         NewOrderQuantity > 0 -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity);
         NewOrderQuantity < 0 -> error
     end,
@@ -348,9 +377,9 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => SellableAsset,
         <<"market_value">> => MarketValue,
-        <<"timestamp">> => Timestamp,
+        <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"order_type">> => <<"sell">>,
-        <<"order_timestamp">> => OrderKey#order_key.timestamp
+        <<"order_timestamp">> => list_to_binary(integer_to_list(OrderKey#order_key.timestamp))
     },
 
     if  
@@ -385,7 +414,10 @@ complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency,
     if 
         PlacedAsset > 0 -> 
             {ok, PendingOrderTimestamp} = insert_new_order(UserId, "sell", CoinId, PlacedAsset),
-            PendingOrder = #{<<"timestamp">> => PendingOrderTimestamp, <<"quantity">> => PlacedAsset},
+            PendingOrder = #{
+                <<"timestamp">> => list_to_binary(integer_to_list(PendingOrderTimestamp)), 
+                <<"quantity">> => PlacedAsset
+            },
             {ok, CompletedTransactions, PendingOrder};
         PlacedAsset == 0 -> 
             {ok, CompletedTransactions, []};
@@ -404,7 +436,7 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
     NewPlacedAsset = PlacedAsset - BuyableAsset,
 
     if
-        BuyableCurrency == Quantity -> ok = delete_order(OrderKey, CoinId);
+        BuyableCurrency == Quantity -> {ok, _} = delete_order(OrderKey, CoinId);
         BuyableCurrency < Quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
     end,
 
@@ -415,9 +447,9 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => BuyableAsset,
         <<"market_value">> => MarketValue,
-        <<"timestamp">> => Timestamp,
+        <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"order_type">> => <<"buy">>,
-        <<"order_timestamp">> => OrderKey#order_key.timestamp
+        <<"order_timestamp">> => list_to_binary(integer_to_list(OrderKey#order_key.timestamp))
     },
 
     if  

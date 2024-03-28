@@ -7,17 +7,18 @@
     request_dispatcher/2,
     get_handler/2,
     post_handler/2,
+    delete_resource/2,
     allowed_methods/2
 ]).
 
 init(Req, Opts) ->
-    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"GET, POST, OPTIONS">>, Req),
+    Req1 = cowboy_req:set_resp_header(<<"access-control-allow-methods">>, <<"GET, POST, DELETE, OPTIONS">>, Req),
     Req2 = cowboy_req:set_resp_header(<<"access-control-allow-headers">>, <<"content-type, accept">>, Req1),
     Req3 = cowboy_req:set_resp_header(<<"access-control-allow-origin">>, <<$*>>, Req2),
 	{cowboy_rest, Req3, Opts}.
 
 allowed_methods(Req, State) ->
-	{[<<"GET">>, <<"POST">>, <<"OPTIONS">>], Req, State}.
+	{[<<"GET">>, <<"POST">>, <<"DELETE">>, <<"OPTIONS">>], Req, State}.
 
 content_types_accepted(Req, State) ->
 	{[
@@ -46,7 +47,7 @@ prepare_pending_orders([], PendingOrders) ->
 prepare_pending_orders([Order | RemainingOrders], PendingOrders) ->
     {_, {_, Timestamp, _}, Type, _, Quantity} = Order,
     PendingOrder = #{
-        <<"timestamp">> => Timestamp,
+        <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"type">> => list_to_binary(Type),
         <<"quantity">> => Quantity
     },
@@ -120,4 +121,30 @@ post_handler(Req, State) ->
             }),
             Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
             {halt, Req3, State}
+    end.
+
+delete_resource(Req, State) ->
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
+    #{<<"user">> := BinaryUser, <<"timestamp">> := BinaryTimestamp, <<"coin">> := BinaryCoin} = jsone:decode(Body),
+    User = binary_to_list(BinaryUser),
+    Coin = binary_to_list(BinaryCoin),
+    Timestamp = list_to_integer(binary_to_list(BinaryTimestamp)),
+
+    try
+        {atomic, ok} = mnesia:transaction(fun() -> 
+            {ok, {_, _, Type, _, Quantity}} = coin_node_mnesia:delete_order({order_key, Timestamp, User}, Coin),
+            if 
+                Type == "sell" ->
+                    ok = coin_node_mnesia:add_asset(User, Coin, Quantity);
+                Type == "buy" ->
+                    ok = coin_node_mnesia:add_deposit(User, Quantity)
+            end
+        end),
+        Req2 = cowboy_req:set_resp_body(jsone:encode(#{
+            <<"status">> => <<"success">>
+        }), Req1),
+        {true, Req2, State}
+    catch
+        error:_ ->
+            {false, Req1, State}
     end.

@@ -44,7 +44,7 @@ get_handler(Req, State) ->
     end),
     case Reply of
         error -> 
-            cowboy_req:reply(404, #{<<"content-type">> => <<"text/plain">>}, <<"Not Found">>, Req),
+            cowboy_req:reply(404, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"status">> => <<"not found">>}), Req),
             {halt, Req, State};
         _ ->
             {Reply, Req, State}
