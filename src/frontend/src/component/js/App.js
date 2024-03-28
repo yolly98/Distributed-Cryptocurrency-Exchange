@@ -178,8 +178,8 @@ class App extends Component {
       body: JSON.stringify(request)
     })
 
-    if (response.status != 200) {
-      alert('Internal server error')
+    if (response.status != 200 && response.status != 500) {
+      alert(`Unknown error [${response.status}]`)
       return
     } 
 
@@ -191,8 +191,10 @@ class App extends Component {
     if (!Array.isArray(json.assets)) 
       available_assets = json.asset
 
-    if (json.state == 'failed') {
-      if (type == 'sell' && this.state.available_assets < quantity)
+    if (response.status == 500) {
+      if (json.quantity <= 0)
+        alert('Requested operation with non positive quantity')
+      else if (type == 'sell' && this.state.available_assets < quantity)
         alert('Not enough assets to sell')
       else if (type == 'buy' && this.state.balance < quantity)
         alert('Not enough money to buy')

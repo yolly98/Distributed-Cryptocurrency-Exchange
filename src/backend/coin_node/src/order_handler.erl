@@ -71,6 +71,7 @@ post_handler(Req, State) ->
     try
         case OpCode of
             "sell" ->
+                true = Quantity > 0, 
                 {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
                     {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:sell(User, Coin, Quantity),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
@@ -79,6 +80,7 @@ post_handler(Req, State) ->
                     {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}
                 end);
             "buy" ->
+                true = Quantity > 0,
                 {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
                     {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:buy(User, Coin, Quantity),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
@@ -110,6 +112,12 @@ post_handler(Req, State) ->
                 {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                 {EffectiveDeposit, EffectiveAsset}
             end),
-            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, jsone:encode(#{<<"status">> => <<"failed">>, <<"balance">> => EffectiveDeposit, <<"asset">> => EffectiveAsset}), Req1),
+            Reply = jsone:encode(#{
+                <<"status">> => <<"failed">>, 
+                <<"balance">> => EffectiveDeposit, 
+                <<"asset">> => EffectiveAsset,
+                <<"quantity">> => Quantity
+            }),
+            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
             {halt, Req3, State}
     end.
