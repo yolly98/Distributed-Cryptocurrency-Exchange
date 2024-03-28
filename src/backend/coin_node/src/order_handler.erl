@@ -64,13 +64,13 @@ get_handler(Req, State) ->
 
 post_handler(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
-    #{<<"opcode">> := BinaryOpCode, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity} = jsone:decode(Body),
-    OpCode = binary_to_list(BinaryOpCode),
+    #{<<"type">> := BinaryType, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity} = jsone:decode(Body),
+    Type = binary_to_list(BinaryType),
     User = binary_to_list(BinaryUser),
     Coin = binary_to_list(BinaryCoin),
 
     try
-        case OpCode of
+        case Type of
             "sell" ->
                 true = Quantity > 0, 
                 {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 

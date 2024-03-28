@@ -62,7 +62,7 @@ class App extends Component {
     this.setState({available_assets, balance, pending_orders})
   }
 
-  update_pending_orders = (transaction) => {
+  updatePendingOrders = (transaction) => {
     let pending_orders = [...this.state.pending_orders]
 
     for (let i = 0; i < pending_orders.length; i++) {
@@ -93,7 +93,7 @@ class App extends Component {
               key: transaction.timestamp,
               market_value: transaction.market_value,
               quantity: transaction.quantity,
-              timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`,
+              timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
               color: 'black'
             }
 
@@ -133,7 +133,7 @@ class App extends Component {
             if (market_operations.length > this.state.market_operations_limit)
               market_operations.pop()
 
-            this.update_pending_orders(transaction)
+            this.updatePendingOrders(transaction)
           })
         }
         this.setState({market_value, market_operations})
@@ -187,7 +187,7 @@ class App extends Component {
           key: pending_order.timestamp,
           type: pending_order.type,
           quantity: pending_order.quantity,
-          timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
+          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
         }
         pending_orders = [
           new_pending_order,
@@ -209,7 +209,7 @@ class App extends Component {
     const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
     const request = {
-      opcode: type,
+      type: type,
       user: this.state.user,
       coin: this.state.coin,
       quantity: quantity
@@ -253,7 +253,7 @@ class App extends Component {
           key: json.new_pending_order.timestamp,
           type: type,
           quantity: json.new_pending_order.quantity,
-          timestamp: `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
+          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
         }
         let pending_orders = [
           new_pending_order,
