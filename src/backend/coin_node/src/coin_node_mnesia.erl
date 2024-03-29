@@ -363,7 +363,7 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
     {_, OrderKey, _, _, Quantity} = Order,
     {ok, Seller} = get_user(OrderKey#order_key.user_id),
     SellableCurrency = erlang:min(convert_asset_to_currency(MarketValue, Quantity), PlacedCurrency),
-    SellableAsset = convert_currency_to_asset(MarketValue, SellableCurrency),
+    SellableAsset = erlang:min(convert_currency_to_asset(MarketValue, SellableCurrency), Quantity),
 
     NewOrderQuantity = Quantity - SellableAsset,
     NewSellerDeposit = Seller#user.deposit + SellableCurrency,
@@ -373,7 +373,9 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
     if
         NewOrderQuantity == 0 -> {ok, _} = delete_order(OrderKey, CoinId);
         NewOrderQuantity > 0 -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity);
-        NewOrderQuantity < 0 -> error
+        NewOrderQuantity < 0 -> 
+            io:format("~p ~p ~p ~p ~p ~p\n", [SellableAsset, SellableCurrency, PlacedCurrency, NewPlacedCurrency, Quantity, NewOrderQuantity]), % TEST
+            ok = error % TEST
     end,
     ok = update_deposit(Seller#user.id, NewSellerDeposit),
     {ok, Timestamp} = insert_new_transaction(Seller#user.id, UserId, CoinId, SellableAsset, MarketValue),
@@ -435,7 +437,7 @@ complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency,
 complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, EarnedCurrency, CompletedTransactions) ->
     {_, OrderKey, _, _, Quantity} = Order,
     BuyableAsset = erlang:min(convert_currency_to_asset(MarketValue, Quantity), PlacedAsset),
-    BuyableCurrency = convert_asset_to_currency(MarketValue, BuyableAsset),
+    BuyableCurrency = erlang:min(convert_asset_to_currency(MarketValue, BuyableAsset), Quantity),
 
     NewOrderQuantity = Quantity - BuyableCurrency,
     ok = add_asset(OrderKey#order_key.user_id, CoinId, BuyableAsset), 
@@ -444,7 +446,10 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
 
     if
         BuyableCurrency == Quantity -> {ok, _} = delete_order(OrderKey, CoinId);
-        BuyableCurrency < Quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity)
+        BuyableCurrency < Quantity -> ok = update_order_quantity(OrderKey, CoinId, NewOrderQuantity);
+        BuyableCurrency > Quantity ->
+            io:format("~p ~p ~p ~p ~p ~p\n", [BuyableAsset, BuyableCurrency, PlacedAsset, NewPlacedAsset, Quantity, NewOrderQuantity]), % TEST
+            ok = error % TEST
     end,
 
     {ok, Timestamp} = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),
