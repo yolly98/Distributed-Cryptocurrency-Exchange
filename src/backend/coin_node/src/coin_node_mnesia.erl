@@ -13,7 +13,8 @@
 -record(transaction, {transaction_key, coins::float(), market_value::float()}).
 
 -export([
-    insert_new_user/2, 
+    insert_new_user/2,
+    get_coins/0, 
     insert_new_coin/2, 
     update_coin/2,
     insert_new_asset/3, 
@@ -124,6 +125,11 @@ get_coin_value(CoinId) ->
             [Value | _] = Values,
             {ok, Value}
     end.
+
+get_coins() ->
+    CoinRecord = #coin{id='$1', value='$2'},
+    Coins = mnesia:select(coin, [{CoinRecord, [], ['$_']}]),
+    {ok, Coins}.
 
 update_coin(CoinId, MarketValue) -> 
     CoinRecord = #coin{id='$1', value='$2'},
@@ -377,6 +383,7 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => SellableAsset,
         <<"market_value">> => MarketValue,
+        <<"new_market_value">> => NewMarketValue,
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"order_type">> => <<"sell">>,
         <<"order_timestamp">> => list_to_binary(integer_to_list(OrderKey#order_key.timestamp))
@@ -447,6 +454,7 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
         <<"coin">> => list_to_binary(CoinId),
         <<"quantity">> => BuyableAsset,
         <<"market_value">> => MarketValue,
+        <<"new_market_value">> => NewMarketValue,
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"order_type">> => <<"buy">>,
         <<"order_timestamp">> => list_to_binary(integer_to_list(OrderKey#order_key.timestamp))

@@ -3,6 +3,7 @@ import { Component } from 'react'
 import { Socket } from '../../utility/Socket'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faRectangleXmark } from '@fortawesome/free-solid-svg-icons'
+import TradingViewChart from './TradingViewChart'
 
 class App extends Component {
 
@@ -13,13 +14,52 @@ class App extends Component {
       host: 'localhost',
       port: 8082,
       coin: null,
+      coins: [],
       balance: 0,
       available_assets: 0,
       market_value: 0,
       websocket: null,
       market_operations: [],
       market_operations_limit: 20,
-      pending_orders: []
+      pending_orders: [],
+      last_candlestick: null,
+      chart_granularity: 3 * 60
+    }
+  }
+
+  chartTimerCallback = () => {
+    let date = new Date()
+    let timestamp = parseInt(date.getTime() / (1000 * this.state.chart_granularity))
+    if (!this.state.last_candlestick || timestamp > parseInt(this.state.last_candlestick.time / this.state.chart_granularity)) {
+      let last_candlestick = {
+        time: parseInt(date.setSeconds(0, 0) / 1000),
+        open: this.state.market_value,
+        high: this.state.market_value,
+        low: this.state.market_value,
+        close: this.state.market_value
+      }
+      // console.log(last_candlestick) // TEST
+      this.setState({last_candlestick})
+    }
+    setTimeout(() => this.chartTimerCallback(), 1000)
+  }
+
+  computeCandlestick = (last_timeseries) => {
+
+    let last_candlestick = {...this.state.last_candlestick}
+    if (last_timeseries) {
+      if (parseInt(last_timeseries.timestamp.slice(-9)) == 0)
+        last_candlestick.open = last_timeseries.market_value
+      if (last_candlestick.low > last_timeseries.market_value)
+        last_candlestick.low = last_timeseries.market_value
+      if (last_candlestick.high < last_timeseries.market_value)
+        last_candlestick.high = last_timeseries.market_value
+      last_candlestick.close = last_timeseries.market_value
+      last_candlestick.time = parseInt((new Date(parseInt(last_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+
+      // console.log(last_candlestick) // TEST
+
+      this.setState({last_candlestick})
     }
   }
 
@@ -79,7 +119,7 @@ class App extends Component {
   }
 
   socketCallback = (message) => {
-    console.log(message) // TEST
+    // console.log(message) // TEST
     switch (message.opcode) {
       case 'new_placed_order':
         let market_value = message.market_value
@@ -87,53 +127,62 @@ class App extends Component {
 
         if (message.transactions.length > 0) {
           message.transactions.forEach(transaction => {
-            // create new transaction
-            let date = new Date(parseInt(transaction.timestamp) / 1000000)
-            let new_transaction = {
-              key: transaction.timestamp,
-              market_value: transaction.market_value,
-              quantity: transaction.quantity,
-              timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
-              color: 'black'
-            }
-
-            // find position in the transaction list and set the color
-            let i = 0
-            while (i < market_operations.length) {
-              if (market_operations[i].key < new_transaction.key) {
-                if (new_transaction.market_value > market_operations[i].market_value)
-                  new_transaction.color = 'green'
-                else if (new_transaction.market_value == market_operations[i].market_value)
-                  new_transaction.color = market_operations[i].color
-                else
-                  new_transaction.color = 'red'
-                break
+            if (transaction.coin == this.state.coin) {
+              // create new transaction
+              let date = new Date(parseInt(transaction.timestamp) / 1000000)
+              let new_transaction = {
+                key: transaction.timestamp,
+                market_value: transaction.market_value,
+                quantity: transaction.quantity,
+                timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
+                color: 'black'
               }
-              i++
+
+              // find position in the transaction list and set the color
+              let i = 0
+              while (i < market_operations.length) {
+                if (market_operations[i].key < new_transaction.key) {
+                  if (new_transaction.market_value > market_operations[i].market_value)
+                    new_transaction.color = 'green'
+                  else if (new_transaction.market_value == market_operations[i].market_value)
+                    new_transaction.color = market_operations[i].color
+                  else
+                    new_transaction.color = 'red'
+                  break
+                }
+                i++
+              }
+
+              // insert the new transaction in the transaction list
+              market_operations = [
+                ...market_operations.slice(0, i),
+                new_transaction,
+                ...market_operations.slice(i)
+              ] 
+
+              // update color of the transaction before the new one
+              if (i > 0) {
+                if (market_operations[i - 1].market_value > market_operations[i].market_value)
+                  market_operations[i - 1].color = 'green'
+                else if (market_operations[i - 1].market_value == market_operations[i].market_value)
+                  market_operations[i - 1].color = market_operations[i].color
+                else
+                  market_operations[i - 1].color = 'red'
+              }
+
+              // check the transaction list limit
+              if (market_operations.length > this.state.market_operations_limit)
+                market_operations.pop()
+
+              this.updatePendingOrders(transaction)
+
+              // add new timeseries to chart 
+              let last_timeseries = {
+                timestamp: transaction.timestamp,
+                market_value: transaction.new_market_value
+              }
+              this.computeCandlestick(last_timeseries)
             }
-
-            // insert the new transaction in the transaction list
-            market_operations = [
-              ...market_operations.slice(0, i),
-              new_transaction,
-              ...market_operations.slice(i)
-            ] 
-
-            // update color of the transaction before the new one
-            if (i > 0) {
-              if (market_operations[i - 1].market_value > market_operations[i].market_value)
-                market_operations[i - 1].color = 'green'
-              else if (market_operations[i - 1].market_value == market_operations[i].market_value)
-                market_operations[i - 1].color = market_operations[i].color
-              else
-                market_operations[i - 1].color = 'red'
-            }
-
-            // check the transaction list limit
-            if (market_operations.length > this.state.market_operations_limit)
-              market_operations.pop()
-
-            this.updatePendingOrders(transaction)
           })
         }
         this.setState({market_value, market_operations})
@@ -151,7 +200,6 @@ class App extends Component {
     let response = await fetch(url, {
       method : 'GET',
       headers: {
-        'Content-type': 'application/json',
         'Accept': 'application/json'
       }
     })
@@ -168,12 +216,35 @@ class App extends Component {
     if (!Array.isArray(json.assets)) 
       available_assets = json.assets
 
+    // load coins from backend
+    let coins = []
+    let market_value = 0
+    url = 'http://' + this.state.host + ':' + this.state.port + '/api/coin'
+    response = await fetch(url, {
+      method : 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+
+    if (response.status != 200) {
+      alert('Load coins failed')
+      return
+    }
+
+    json = await response.json()
+    if (Array.isArray(json.coins) && json.coins.length > 0) {
+      coins = json.coins
+      let coin_data = coins.filter(function(coin_data) { return coin_data.coin == coin })
+      if (coin_data)
+        market_value = coin_data[0].market_value
+    }
+
     // load pending orders from backend
     url = 'http://' + this.state.host + ':' + this.state.port + '/api/order?user=' + user + '&coin=' + coin
     response = await fetch(url, {
       method : 'GET',
       headers: {
-        'Content-type': 'application/json',
         'Accept': 'application/json'
       }
     })
@@ -201,7 +272,10 @@ class App extends Component {
       this.state.websocket.close()
     let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
 
-    this.setState({balance, available_assets, websocket, user, coin, pending_orders})
+    this.setState({balance, available_assets, websocket, user, coin, pending_orders, market_value, coins})
+
+    // set timer to update chart
+    setTimeout(() => this.chartTimerCallback(), 1000)
   }
 
   operation = async (type) => {
@@ -232,7 +306,6 @@ class App extends Component {
     let balance = json.balance
     let available_assets = 0
 
-    console.log(json) // TEST
     if (!Array.isArray(json.assets)) 
       available_assets = json.asset
 
@@ -339,6 +412,7 @@ class App extends Component {
                 }
             </div>
           </div>
+          <TradingViewChart id='chart' last_candlestick={this.state.last_candlestick}/>
         </div>
       </div>
     )

@@ -69,7 +69,7 @@ post_handler(Req, State) ->
     User = binary_to_list(BinaryUser),
     Coin = binary_to_list(BinaryCoin),
 
-    try
+%    try
         case Type of
             "sell" ->
                 true = Quantity > 0, 
@@ -105,23 +105,23 @@ post_handler(Req, State) ->
             <<"asset">> => Asset,
             <<"new_pending_order">> => NewPendingOrder
         }), Req1),
-        {true, Req2, State}
-    catch
-        error:_ ->
-            {atomic, {EffectiveDeposit, EffectiveAsset}} = mnesia:transaction(fun() -> 
-                {ok, EffectiveDeposit} = coin_node_mnesia:get_deposit(User),
-                {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
-                {EffectiveDeposit, EffectiveAsset}
-            end),
-            Reply = jsone:encode(#{
-                <<"status">> => <<"failed">>, 
-                <<"balance">> => EffectiveDeposit, 
-                <<"asset">> => EffectiveAsset,
-                <<"quantity">> => Quantity
-            }),
-            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
-            {halt, Req3, State}
-    end.
+        {true, Req2, State}.
+%    catch
+%        error:_ ->
+%            {atomic, {EffectiveDeposit, EffectiveAsset}} = mnesia:transaction(fun() -> 
+%                {ok, EffectiveDeposit} = coin_node_mnesia:get_deposit(User),
+%                {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+%                {EffectiveDeposit, EffectiveAsset}
+%            end),
+%            Reply = jsone:encode(#{
+%                <<"status">> => <<"failed">>, 
+%                <<"balance">> => EffectiveDeposit, 
+%                <<"asset">> => EffectiveAsset,
+%                <<"quantity">> => Quantity
+%            }),
+%            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
+%            {halt, Req3, State}
+%    end.
 
 delete_resource(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
