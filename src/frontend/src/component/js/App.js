@@ -22,56 +22,70 @@ class App extends Component {
       market_operations: [],
       market_operations_limit: 20,
       pending_orders: [],
-      last_candlestick: null,
-      chart_granularity: 3 * 60
+      last_candlesticks: [],
+      last_volumes: [],
+      chart_granularity: 60
     }
   }
 
   chartTimerCallback = () => {
     let date = new Date()
     let timestamp = parseInt(date.getTime() / (1000 * this.state.chart_granularity))
-    if (!this.state.last_candlestick || timestamp > parseInt(this.state.last_candlestick.time / this.state.chart_granularity)) {
-      let last_candlestick = {
+    if (this.state.last_candlesticks.length == 0 || (this.state.last_candlesticks.length > 0 && timestamp > parseInt(this.state.last_candlesticks.slice(-1)[0].time / this.state.chart_granularity))) {
+      let last_candlesticks = [{
         time: parseInt(date.setSeconds(0, 0) / 1000),
         open: this.state.market_value,
         high: this.state.market_value,
         low: this.state.market_value,
         close: this.state.market_value
-      }
+      }]
+      let last_volumes = [{
+        time: parseInt(date.setSeconds(0, 0) / 1000),
+        value: 0,
+        color: '#26a69a'
+      }]
       // console.log(last_candlestick) // TEST
-      this.setState({last_candlestick})
+      this.setState({last_candlesticks, last_volumes})
     }
     setTimeout(() => this.chartTimerCallback(), 1000)
   }
 
-  computeCandlestick = (last_timeseries) => {
+  computeCandlestick = (last_timeseries, last_candlesticks, last_volumes) => {
 
-    let last_candlestick = {...this.state.last_candlestick}
+    let new_candlestick = {...last_candlesticks.slice(-1)[0]}
+    let new_volume = {...last_volumes.slice(-1)[0]}
     if (last_timeseries) {
-      if (parseInt(last_timeseries.timestamp.slice(-9)) == 0)
-        last_candlestick.open = last_timeseries.market_value
-      if (last_candlestick.low > last_timeseries.market_value)
-        last_candlestick.low = last_timeseries.market_value
-      if (last_candlestick.high < last_timeseries.market_value)
-        last_candlestick.high = last_timeseries.market_value
-      last_candlestick.close = last_timeseries.market_value
-      last_candlestick.time = parseInt((new Date(parseInt(last_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+      if (parseInt(last_timeseries.timestamp.slice(-9)) == 0) {
+        new_candlestick.open = last_timeseries.market_value
+        new_volume.volume = 0
+      }
+      if (new_candlestick.low > last_timeseries.market_value)
+        new_candlestick.low = last_timeseries.market_value
+      if (new_candlestick.high < last_timeseries.market_value)
+        new_candlestick.high = last_timeseries.market_value
+      new_candlestick.close = last_timeseries.market_value
+      new_candlestick.time = parseInt((new Date(parseInt(last_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
 
-      // console.log(last_candlestick) // TEST
-
-      this.setState({last_candlestick})
+      new_volume.time = new_candlestick.time
+      new_volume.color = new_candlestick.open > new_candlestick.close ? '#ef5350' : '#26a69a'
+      new_volume.value += last_timeseries.volume
+          
+      // console.log(new_volume)  
+      // console.log(new_candlestick)
+      last_candlesticks.push(new_candlestick)
+      last_volumes.push(new_volume)
     }
   }
 
   deleteOrder = async (order) => {
-    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
+    let url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
-    const request = {
+    let request = {
       user: this.state.user,
       coin: this.state.coin,
       timestamp: order.key
     }
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method : 'DELETE',
       headers: {
         'Content-type': 'application/json',
@@ -125,6 +139,8 @@ class App extends Component {
         let market_value = message.market_value
         let market_operations = [...this.state.market_operations]
 
+        let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
+        let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
         if (message.transactions.length > 0) {
           message.transactions.forEach(transaction => {
             if (transaction.coin == this.state.coin) {
@@ -179,13 +195,14 @@ class App extends Component {
               // add new timeseries to chart 
               let last_timeseries = {
                 timestamp: transaction.timestamp,
-                market_value: transaction.new_market_value
+                market_value: transaction.new_market_value,
+                volume: transaction.quantity
               }
-              this.computeCandlestick(last_timeseries)
+              this.computeCandlestick(last_timeseries, last_candlesticks, last_volumes)
             }
           })
         }
-        this.setState({market_value, market_operations})
+        this.setState({market_value, market_operations, last_candlesticks, last_volumes})
         break
     }
   }
@@ -272,23 +289,20 @@ class App extends Component {
       this.state.websocket.close()
     let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
 
-    this.setState({balance, available_assets, websocket, user, coin, pending_orders, market_value, coins})
-
-    // set timer to update chart
-    setTimeout(() => this.chartTimerCallback(), 1000)
+    this.setState({balance, available_assets, websocket, user, coin, pending_orders, market_value, coins}, () => this.chartTimerCallback())
   }
 
   operation = async (type) => {
     let quantity = parseFloat(document.getElementById(type + '-input').value)
-    const url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
+    let url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
-    const request = {
+    let request = {
       type: type,
       user: this.state.user,
       coin: this.state.coin,
       quantity: quantity
     }
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method : 'POST',
       headers: {
         'Content-type': 'application/json',
@@ -302,7 +316,7 @@ class App extends Component {
       return
     } 
 
-    const json = await response.json()
+    let json = await response.json()
     let balance = json.balance
     let available_assets = 0
 
@@ -412,7 +426,7 @@ class App extends Component {
                 }
             </div>
           </div>
-          <TradingViewChart id='chart' last_candlestick={this.state.last_candlestick}/>
+          <TradingViewChart id='chart' last_candlesticks={this.state.last_candlesticks} last_volumes={this.state.last_volumes}/>
         </div>
       </div>
     )
