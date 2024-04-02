@@ -98,9 +98,8 @@ class App extends Component {
     let url = 'http://' + this.state.host + ':' + this.state.port + '/api/order'
   
     let request = {
-      user: this.state.user,
+      uuid: order.key,
       coin: this.state.coin,
-      timestamp: order.key
     }
     let response = await fetch(url, {
       method : 'DELETE',
@@ -137,7 +136,7 @@ class App extends Component {
     let pending_orders = [...this.state.pending_orders]
 
     for (let i = 0; i < pending_orders.length; i++) {
-      if (transaction.order_type == pending_orders[i].type && transaction.order_timestamp == pending_orders[i].key && (transaction.seller == this.state.user || transaction.buyer == this.state.user)) {
+      if (transaction.order_uuid == pending_orders[i].key) {
         if (transaction.order_type == 'buy')
           pending_orders[i].quantity -= transaction.quantity * transaction.market_value
         else
@@ -435,7 +434,7 @@ class App extends Component {
       if (!Array.isArray(json.new_pending_order)) {
         let date = new Date(parseInt(json.new_pending_order.timestamp) / 1000000)
         let new_pending_order = {
-          key: json.new_pending_order.timestamp,
+          key: json.new_pending_order.uuid,
           type: type,
           quantity: json.new_pending_order.quantity,
           timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`

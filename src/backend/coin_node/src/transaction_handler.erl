@@ -24,7 +24,7 @@ prepare_transactions([], PreparedTransactions) ->
     {ok, PreparedTransactions};
 
 prepare_transactions([Transaction | RemainingTransactions], PreparedTransactions) ->
-    {_, {_, Timestamp, _, _, _}, Quantity, MarketValue, NewMarketValue} = Transaction,
+    {_, _, Timestamp, _, _, _, Quantity, MarketValue, NewMarketValue} = Transaction,
     PreparedTransaction = #{
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"quantity">> => Quantity,

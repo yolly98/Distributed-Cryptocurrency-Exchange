@@ -21,7 +21,13 @@ init([]) ->
         restart => permanent,
         shutdown => brutal_kill
     },
-    ChildSpecs = [CowboyListener],
+    UUIDGenerator = #{
+        id => uuid_generator,
+        start => {uuid_generator, start, []},
+        restart => permanent,
+        shutdown => brutal_kill
+    },
+    ChildSpecs = [CowboyListener, UUIDGenerator],
     {ok, {SupFlags, ChildSpecs}}.
 
 

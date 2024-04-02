@@ -45,8 +45,9 @@ prepare_pending_orders([], PendingOrders) ->
     {ok, PendingOrders};
 
 prepare_pending_orders([Order | RemainingOrders], PendingOrders) ->
-    {_, {_, Timestamp, _}, Type, _, Quantity} = Order,
+    {_, UUID, Timestamp, _, Type, _, Quantity} = Order,
     PendingOrder = #{
+        <<"uuid">> => list_to_binary(integer_to_list(UUID)),
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"type">> => list_to_binary(Type),
         <<"quantity">> => Quantity
@@ -125,14 +126,13 @@ post_handler(Req, State) ->
 
 delete_resource(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
-    #{<<"user">> := BinaryUser, <<"timestamp">> := BinaryTimestamp, <<"coin">> := BinaryCoin} = jsone:decode(Body),
-    User = binary_to_list(BinaryUser),
+    #{<<"uuid">> := BinaryUUID, <<"coin">> := BinaryCoin} = jsone:decode(Body),
+    UUID = list_to_integer(binary_to_list(BinaryUUID)),
     Coin = binary_to_list(BinaryCoin),
-    Timestamp = list_to_integer(binary_to_list(BinaryTimestamp)),
 
     try
         {atomic, ok} = mnesia:transaction(fun() -> 
-            {ok, {_, _, Type, _, Quantity}} = coin_node_mnesia:delete_order({order_key, Timestamp, User}, Coin),
+            {ok, {_, _, _, User, Type, _, Quantity}} = coin_node_mnesia:delete_order(UUID, Coin),
             if 
                 Type == "sell" ->
                     ok = coin_node_mnesia:add_asset(User, Coin, Quantity);
