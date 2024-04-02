@@ -317,10 +317,10 @@ class App extends Component {
       let date = new Date(json.transactions[0].timestamp / 1000000)
       history_candlesticks = [{
         time: parseInt(date.setSeconds(0, 0) / 1000),
-        open: json.transactions[0].market_value,
-        high: json.transactions[0].market_value,
-        low: json.transactions[0].market_value,
-        close: json.transactions[0].market_value
+        open: json.transactions[0].new_market_value,
+        high: json.transactions[0].new_market_value,
+        low: json.transactions[0].new_market_value,
+        close: json.transactions[0].new_market_value
       }]
       history_volumes = [{
         time: parseInt(date.setSeconds(0, 0) / 1000),
@@ -330,14 +330,41 @@ class App extends Component {
 
       console.log(history_candlesticks)
     
-      json.transactions.slice(1).forEach(transaction => {
-        let last_timeseries = {
-          timestamp: transaction.timestamp,
-          market_value: transaction.market_value,
-          volume: transaction.quantity
+
+      for (let i = 1; i < json.transactions.length; i++) {
+        let last_time = parseInt((new Date(parseInt(json.transactions[i - 1].timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+        let new_time = parseInt((new Date(parseInt(json.transactions[i].timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+        
+        // add all missing timeseries
+        if (last_time != new_time) {
+          for (let j = last_time + this.state.chart_granularity; j <= new_time; j += this.state.chart_granularity) {
+            let new_timeseries = {
+              timestamp: `${j}000000000`,
+              market_value: json.transactions[i - 1].new_market_value,
+              volume: 0
+            }
+            this.computeCandlestick(new_timeseries, history_candlesticks, history_volumes)
+          } 
         }
-        this.computeCandlestick(last_timeseries, history_candlesticks, history_volumes)
-      })
+        let new_timeseries = {
+          timestamp: json.transactions[i].timestamp,
+          market_value: json.transactions[i].new_market_value,
+          volume: json.transactions[i].quantity
+        }
+        this.computeCandlestick(new_timeseries, history_candlesticks, history_volumes)
+
+        if (i == json.transactions.length - 1) {
+          let now = parseInt((new Date()).setSeconds(0, 0) / 1000)
+          for (let j = new_time + this.state.chart_granularity; j <= now; j += this.state.chart_granularity) {
+            let new_timeseries = {
+              timestamp: `${j}000000000`,
+              market_value: json.transactions[i].new_market_value,
+              volume: 0
+            }
+            this.computeCandlestick(new_timeseries, history_candlesticks, history_volumes)
+          } 
+        }
+      }
     }
     
     // console.log(history_candlesticks) // TEST

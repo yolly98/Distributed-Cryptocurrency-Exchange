@@ -10,7 +10,7 @@
 -record(order_key, {timestamp::integer(), user_id::string()}).
 
 -record(transaction_key, {timestamp::integer(), seller::string(), buyer::string(), coin_id::string()}).
--record(transaction, {transaction_key, coins::float(), market_value::float()}).
+-record(transaction, {transaction_key, coins::float(), market_value::float(), new_market_value::float()}).
 
 -export([
     insert_new_user/2,
@@ -22,7 +22,7 @@
     insert_new_order/4,
     update_order_quantity/3,
     delete_order/2, 
-    insert_new_transaction/5,
+    insert_new_transaction/6,
     get_transactions_history/2,
     get_user/1,
     get_deposit/1,
@@ -289,14 +289,14 @@ delete_order(OrderKey, CoinId) ->
 
 % -------------------------- TRANSACTION --------------------------
 
-insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
+insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue, NewMarketValue) ->
     Timestamp = os:system_time(nanosecond),
-    TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6'},
+    TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6', new_market_value='$7'},
     Guards = [{'==', '$1', Timestamp}, {'==', '$2', Seller}, {'==', '$3', Buyer}, {'==', '$4', CoinId}],
     Transactions = mnesia:select(transaction, [{TransactionRecord, Guards, ['$_']}]),
     case Transactions == [] of
         true -> 
-            ok = mnesia:write(#transaction{transaction_key=#transaction_key{timestamp=Timestamp, seller=Seller, buyer=Buyer, coin_id=CoinId}, coins=Coins, market_value=MarketValue}),
+            ok = mnesia:write(#transaction{transaction_key=#transaction_key{timestamp=Timestamp, seller=Seller, buyer=Buyer, coin_id=CoinId}, coins=Coins, market_value=MarketValue, new_market_value=NewMarketValue}),
             {ok, Timestamp};
         false ->
             error
@@ -304,7 +304,7 @@ insert_new_transaction(Seller, Buyer, CoinId, Coins, MarketValue) ->
 
 get_transactions_history(CoinId, Seconds) ->
     MinTimestamp = os:system_time(nanosecond) - (Seconds * math:pow(10, 9)),
-    TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6'},
+    TransactionRecord = #transaction{transaction_key=#transaction_key{timestamp='$1', seller='$2', buyer='$3', coin_id='$4'}, coins='$5', market_value='$6', new_market_value='$7'},
     Guards = [{'==', '$4', CoinId}, {'>', '$1', MinTimestamp}],
     Transactions = mnesia:select(transaction, [{TransactionRecord, Guards, ['$_']}]),
     {ok, Transactions}.
@@ -378,7 +378,7 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
             ok = error % TEST
     end,
     ok = update_deposit(Seller#user.id, NewSellerDeposit),
-    {ok, Timestamp} = insert_new_transaction(Seller#user.id, UserId, CoinId, SellableAsset, MarketValue),
+    {ok, Timestamp} = insert_new_transaction(Seller#user.id, UserId, CoinId, SellableAsset, MarketValue, NewMarketValue),
     CompletedTransaction = #{
         <<"seller">> => list_to_binary(Seller#user.id), 
         <<"buyer">> => list_to_binary(UserId),
@@ -452,7 +452,7 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
             ok = error % TEST
     end,
 
-    {ok, Timestamp} = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue),
+    {ok, Timestamp} = insert_new_transaction(UserId, OrderKey#order_key.user_id, CoinId, BuyableAsset, MarketValue, NewMarketValue),
     CompletedTransaction = #{
         <<"seller">> => list_to_binary(UserId), 
         <<"buyer">> => list_to_binary(OrderKey#order_key.user_id),

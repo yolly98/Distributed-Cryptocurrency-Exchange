@@ -11,7 +11,7 @@
 -record(order, {order_key, type::string(), coin_id::string(), quantity::float()}).
 
 -record(transaction_key, {timestamp::integer(), seller::string(), buyer::string(), coin_id::string()}).
--record(transaction, {transaction_key, coins::float(), market_value::float()}).
+-record(transaction, {transaction_key, coins::float(), market_value::float(), new_market_value::float()}).
 
 -export([
     create_database/0,
