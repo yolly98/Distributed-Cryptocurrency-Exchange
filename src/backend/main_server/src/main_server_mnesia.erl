@@ -42,6 +42,7 @@ create_database() ->
     ]),
 
     mnesia:create_table(transaction, [
+        {type, ordered_set},
         {disc_copies, [node()]},
         {attributes, record_info(fields, transaction)}
     ]),

@@ -24,7 +24,8 @@ class App extends Component {
       pending_orders: [],
       last_candlesticks: [],
       last_volumes: [],
-      chart_granularity: 60
+      chart_granularity: 60,
+      history_limit: 60 * 60 * 24
     }
   }
 
@@ -50,30 +51,46 @@ class App extends Component {
     setTimeout(() => this.chartTimerCallback(), 1000)
   }
 
-  computeCandlestick = (last_timeseries, last_candlesticks, last_volumes) => {
+  computeCandlestick = (new_timeseries, last_candlesticks, last_volumes) => {
 
     let new_candlestick = {...last_candlesticks.slice(-1)[0]}
     let new_volume = {...last_volumes.slice(-1)[0]}
-    if (last_timeseries) {
-      if (parseInt(last_timeseries.timestamp.slice(-9)) == 0) {
-        new_candlestick.open = last_timeseries.market_value
-        new_volume.volume = 0
-      }
-      if (new_candlestick.low > last_timeseries.market_value)
-        new_candlestick.low = last_timeseries.market_value
-      if (new_candlestick.high < last_timeseries.market_value)
-        new_candlestick.high = last_timeseries.market_value
-      new_candlestick.close = last_timeseries.market_value
-      new_candlestick.time = parseInt((new Date(parseInt(last_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+    if (new_timeseries) {
 
-      new_volume.time = new_candlestick.time
+      let new_time = parseInt((new Date(parseInt(new_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+      if (new_candlestick.time != new_time) {
+        new_candlestick.open = new_candlestick.close
+        new_candlestick.low = new_timeseries.market_value <= new_candlestick.open ? new_timeseries.market_value : new_candlestick.open
+        new_candlestick.high = new_timeseries.market_value >= new_candlestick.open ? new_timeseries.market_value : new_candlestick.open
+        new_candlestick.close = new_timeseries.market_value
+        new_volume.value = new_timeseries.volume
+      } else {
+        if (new_candlestick.low >= new_timeseries.market_value)
+          new_candlestick.low = new_timeseries.market_value
+
+        if (new_candlestick.high <= new_timeseries.market_value)
+          new_candlestick.high = new_timeseries.market_value
+
+        new_candlestick.close = new_timeseries.market_value
+        new_volume.value = new_timeseries.volume + new_volume.value
+      }
+
+      if (parseInt(new_timeseries.timestamp.slice(-9)) == 0) {
+        new_candlestick.open = new_timeseries.market_value
+        new_volume.volume = new_timeseries.volume
+      }
+
+      new_candlestick.time = new_time
+      new_volume.time = new_time
       new_volume.color = new_candlestick.open > new_candlestick.close ? '#ef5350' : '#26a69a'
-      new_volume.value += last_timeseries.volume
           
-      // console.log(new_volume)  
-      // console.log(new_candlestick)
       last_candlesticks.push(new_candlestick)
       last_volumes.push(new_volume)
+
+      console.log('-------------------------------')
+      console.log(new_timeseries) // TEST
+      console.log(new_candlestick) // TEST
+      console.log('-------------------------------')
     }
   }
 
@@ -284,12 +301,66 @@ class App extends Component {
       })
     }
 
+    // load transaction history
+    url = 'http://' + this.state.host + ':' + this.state.port + '/api/transaction?coin=' + coin + '&seconds=' + this.state.history_limit
+    response = await fetch(url, {
+      method : 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+    json = await response.json()
+    let history_candlesticks = []
+    let history_volumes = []
+    // console.log(json.transactions) // TEST
+    if (Array.isArray(json.transactions) && json.transactions.length > 0) {
+      let date = new Date(json.transactions[0].timestamp / 1000000)
+      history_candlesticks = [{
+        time: parseInt(date.setSeconds(0, 0) / 1000),
+        open: json.transactions[0].market_value,
+        high: json.transactions[0].market_value,
+        low: json.transactions[0].market_value,
+        close: json.transactions[0].market_value
+      }]
+      history_volumes = [{
+        time: parseInt(date.setSeconds(0, 0) / 1000),
+        value: 1,
+        color: '#26a69a'
+      }]
+
+      console.log(history_candlesticks)
+    
+      json.transactions.slice(1).forEach(transaction => {
+        let last_timeseries = {
+          timestamp: transaction.timestamp,
+          market_value: transaction.market_value,
+          volume: transaction.quantity
+        }
+        this.computeCandlestick(last_timeseries, history_candlesticks, history_volumes)
+      })
+    }
+    
+    // console.log(history_candlesticks) // TEST
+
     // open websocket to backend
     if (this.state.websocket)
       this.state.websocket.close()
     let websocket = new Socket(this.state.host, this.state.port, this.socketCallback, keepalive) 
 
-    this.setState({balance, available_assets, websocket, user, coin, pending_orders, market_value, coins}, () => this.chartTimerCallback())
+    this.setState({
+      balance,
+      available_assets,
+      user,
+      coin,
+      pending_orders, 
+      market_value, 
+      coins, 
+      last_candlesticks: history_candlesticks, 
+      last_volumes: history_volumes,
+      websocket
+    }, () => {
+      this.chartTimerCallback()
+    })
   }
 
   operation = async (type) => {
