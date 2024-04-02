@@ -27,6 +27,7 @@
     get_user/1,
     get_deposit/1,
     add_deposit/2,
+    sub_deposit/2,
     update_deposit/2,
     get_coin_value/1,
     get_pending_orders/2,
@@ -87,6 +88,24 @@ add_deposit(UserId, Quantity) ->
             [User | _] = Users,
             NewValue = User#user.deposit + Quantity,
             ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
+    end.
+
+sub_deposit(UserId, Quantity) ->
+    UserRecord = #user{id='$1', deposit='$2'},
+    Guard = {'==', '$1', UserId},
+    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
+    case Users == [] of
+        true -> 
+            error;
+        false ->
+            [User | _] = Users,
+            NewValue = User#user.deposit - Quantity,
+            if 
+                NewValue >= 0 ->
+                    ok = mnesia:write(#user{id=User#user.id, deposit=NewValue});
+                NewValue < 0 ->
+                    error
+            end
     end.
 
 update_deposit(UserId, NewValue) ->
