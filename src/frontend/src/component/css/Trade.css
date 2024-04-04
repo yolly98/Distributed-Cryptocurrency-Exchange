@@ -56,6 +56,18 @@ button{
   justify-content: center;
 }
 
+#op-header{
+  margin: 1rem 0;
+  display: flex;
+}
+
+.op-type{
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
 #market-value{
   margin-bottom: 1rem;
 }

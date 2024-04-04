@@ -7,7 +7,7 @@
 
 -record(user, {id::string(), deposit::float()}).
 
--record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float()}).
+-record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float(), limit::float()}).
 
 -record(transaction, {uuid::integer(), timestamp::integer(), seller::string(), buyer::string(), coin_id::string(), coins::float(), market_value::float(), new_market_value::float()}).
 

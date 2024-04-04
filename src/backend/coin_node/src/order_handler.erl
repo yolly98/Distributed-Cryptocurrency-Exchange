@@ -45,12 +45,13 @@ prepare_pending_orders([], PendingOrders) ->
     {ok, PendingOrders};
 
 prepare_pending_orders([Order | RemainingOrders], PendingOrders) ->
-    {_, UUID, Timestamp, _, Type, _, Quantity} = Order,
+    {_, UUID, Timestamp, _, Type, _, Quantity, Limit} = Order,
     PendingOrder = #{
         <<"uuid">> => list_to_binary(integer_to_list(UUID)),
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
         <<"type">> => list_to_binary(Type),
-        <<"quantity">> => Quantity
+        <<"quantity">> => Quantity,
+        <<"limit">> => Limit
     },
     prepare_pending_orders(RemainingOrders, PendingOrders ++ [PendingOrder]).
 
@@ -65,7 +66,7 @@ get_handler(Req, State) ->
 
 post_handler(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
-    #{<<"type">> := BinaryType, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity} = jsone:decode(Body),
+    #{<<"type">> := BinaryType, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity, <<"limit">> := Limit} = jsone:decode(Body),
     Type = binary_to_list(BinaryType),
     User = binary_to_list(BinaryUser),
     Coin = binary_to_list(BinaryCoin),
@@ -75,7 +76,7 @@ post_handler(Req, State) ->
             "sell" ->
                 true = Quantity > 0, 
                 {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:sell(User, Coin, Quantity),
+                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:sell(User, Coin, Quantity, Limit),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
                     {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                     {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
@@ -84,7 +85,7 @@ post_handler(Req, State) ->
             "buy" ->
                 true = Quantity > 0,
                 {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:buy(User, Coin, Quantity),
+                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:buy(User, Coin, Quantity, Limit),
                     {ok, Deposit} = coin_node_mnesia:get_deposit(User),
                     {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
                     {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
@@ -132,7 +133,7 @@ delete_resource(Req, State) ->
 
     try
         {atomic, ok} = mnesia:transaction(fun() -> 
-            {ok, {_, _, _, User, Type, _, Quantity}} = coin_node_mnesia:delete_order(UUID, Coin),
+            {ok, {_, _, _, User, Type, _, Quantity, _}} = coin_node_mnesia:delete_order(UUID, Coin),
             if 
                 Type == "sell" ->
                     ok = coin_node_mnesia:add_asset(User, Coin, Quantity);

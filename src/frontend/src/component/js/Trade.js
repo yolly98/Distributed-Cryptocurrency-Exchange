@@ -20,6 +20,7 @@ class Trade extends Component {
       available_assets: 0,
       market_value: 0,
       websocket: null,
+      order_type: 'market',
       market_operations: [],
       market_operations_limit: 20,
       pending_orders: [],
@@ -31,11 +32,6 @@ class Trade extends Component {
     }
   }
 
-  shouldComponentUpdate(nextProps, nextState) {
-    if (this.props.user != nextProps.user && nextProps.user)
-      console.log(nextProps.user)
-    return true
-  }
   componentDidMount() {
     console.log(this.props.user)
     if (!this.props.user) {
@@ -327,7 +323,8 @@ class Trade extends Component {
           key: pending_order.timestamp,
           type: pending_order.type,
           quantity: pending_order.quantity,
-          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
+          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
+          limit: pending_order.limit
         }
         pending_orders = [
           new_pending_order,
@@ -427,6 +424,9 @@ class Trade extends Component {
 
   operation = async (type) => {
     let input_quantity = document.getElementById(type + '-input').value
+    let limit = 0;
+    if (this.state.order_type == 'limit')
+      limit = parseFloat(type == 'buy' ? document.getElementsByClassName('limit-input')[0].value : document.getElementsByClassName('limit-input')[1].value)
     if(input_quantity == '') {
       alert('Invalid Quantity')
       return
@@ -438,7 +438,8 @@ class Trade extends Component {
       type: type,
       user: this.state.user,
       coin: this.state.coin,
-      quantity: quantity
+      quantity: quantity,
+      limit: limit
     }
     let response = await fetch(url, {
       method : 'POST',
@@ -478,7 +479,8 @@ class Trade extends Component {
           key: json.new_pending_order.uuid,
           type: type,
           quantity: json.new_pending_order.quantity,
-          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`
+          timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
+          limit: json.new_pending_order.limit
         }
         let pending_orders = [
           new_pending_order,
@@ -492,6 +494,13 @@ class Trade extends Component {
   }
 
   render() {
+
+    let limit_input = <></>
+    if (this.state.order_type == 'market')
+      limit_input = <input className='limit-input' type='number' placeholder='Market' disabled></input>
+    else
+      limit_input = <input className='limit-input' type='number' placeholder='Limit Market Value'></input>
+
     return (
       <div id='home'>
         <div id='home-header'>
@@ -509,15 +518,21 @@ class Trade extends Component {
 
           <h2>Operations</h2>
           <label id='market-value'>Crypto Market Value: {parseFloat(this.state.market_value.toFixed(6))}€</label>
+          <div id='op-header'>
+            <label className='op-type' onClick={() => {this.setState({order_type: 'market'})}}>Market</label>
+            <label className='op-type' onClick={() => {this.setState({order_type: 'limit'})}}>Limit</label>
+          </div>
           <div id='op-container'>
             <div className='op'>
               <h3>Buy</h3>
               <input id='buy-input' type='number' placeholder='Amount (euro)'></input>
+              {limit_input}
               <button onClick={() => this.operation('buy')}>BUY</button>
             </div>
             <div className='op'>
               <h3>Sell</h3>
               <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
+              {limit_input}
               <button onClick={() => this.operation('sell')}>SELL</button>
             </div>
           </div>
@@ -548,6 +563,7 @@ class Trade extends Component {
                 <label style={{fontWeight: 'bold'}} className='order-label'>Type</label>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Quantity</label>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Time</label>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Limit</label>
               </div>
                 {
                   this.state.pending_orders.map(order => (
@@ -558,6 +574,7 @@ class Trade extends Component {
                       <label className='order-label'>{order.type}</label>
                       <label className='order-label'>{parseFloat(order.quantity.toFixed(6))}</label>
                       <label className='order-label'>{order.timestamp}</label>
+                      <label className='order-label'>{order.limit}</label>
                       <FontAwesomeIcon style={{cursor: 'pointer'}} onClick={() => this.deleteOrder(order)} icon={faRectangleXmark} />
                     </div>
                   ))
