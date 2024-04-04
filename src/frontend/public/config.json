@@ -1,0 +1,9 @@
+{
+    "host": "localhost",
+    "port": 8082,
+    "default_coin": "btc1",
+    "market_operations_limit": 20,
+    "chart_granularity": 60,
+    "history_limit": 86400,
+    "keepalive": 45000
+}
