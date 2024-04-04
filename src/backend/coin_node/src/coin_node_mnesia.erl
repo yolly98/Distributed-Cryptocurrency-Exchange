@@ -408,9 +408,9 @@ update_market_value(MarketValue, Type, CoinId, Quantity) ->
     PendingWeigth = (convert_currency_to_asset(MarketValue, TotalBuy) - TotalSell) * 0.0001,
     if 
         Type == "buy" ->
-            NewMarketValue = MarketValue + Quantity * MarketValue * 0.001 + PendingWeigth;
+            NewMarketValue = MarketValue - Quantity * MarketValue * 0.001 + PendingWeigth;
         Type == "sell" ->
-            NewMarketValue = MarketValue - Quantity * MarketValue * 0.001 + PendingWeigth
+            NewMarketValue = MarketValue + Quantity * MarketValue * 0.001 + PendingWeigth
     end,
     NewMarketValue.
 
