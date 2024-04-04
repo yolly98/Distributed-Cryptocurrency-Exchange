@@ -29,14 +29,16 @@
     sub_deposit/2,
     update_deposit/2,
     get_coin_value/1,
+    get_next_order/2,
     get_pending_orders/2,
-    get_orders_by_type/4,
+    get_order_by_type/4,
     get_assets_by_user/1,
     get_asset_by_user/2,
     get_asset/2,
     sub_asset/3,
-    sell/4,
-    buy/4
+    sell/5,
+    buy/5,
+    fill_orders/2
 ]).
 
 get_uuid(Table) ->
@@ -271,7 +273,31 @@ get_pending_orders(UserId, CoinId) ->
     Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
     {ok, Orders}.
 
-get_orders_by_type(UserId, Type, CoinId, MarketValue) ->
+get_next_order(CoinId, MarketValue) ->
+    Table = list_to_atom(CoinId ++ "_order"),
+    OrderRecord = {Table, '$1', '$2', '$3', '$4', '$5', '$6', '$7'},
+    Guards = [
+        {'==', '$5', CoinId},
+        {'orelse', 
+            {'==', '$7', 0}, 
+            {'and', {'==', '$4', "buy"}, {'>=', '$7', MarketValue}}, 
+            {'and', {'==', '$4', "sell"}, {'=<', '$7', MarketValue}}
+        }
+%        {'orelse', 
+%            {{'==', '$4', "buy"}, {'orelse', {'==', '$7', 0}, {'>=', '$7', MarketValue}}}, 
+%            {{'==', '$4', "sell"}, {'orelse', {'==', '$7', 0}, {'=<', '$7', MarketValue}}}
+%        }
+    ],
+    Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
+    case Orders == [] of
+        true ->
+            {ok, []};
+        false ->
+            [Order | _] = Orders,
+            {ok, Order}
+    end.
+
+get_order_by_type(UserId, Type, CoinId, MarketValue) ->
     Table = list_to_atom(CoinId ++ "_order"),
     OrderRecord = {Table, '$1', '$2', '$3', '$4', '$5', '$6', '$7'},
     if 
@@ -291,7 +317,13 @@ get_orders_by_type(UserId, Type, CoinId, MarketValue) ->
             ]
     end,
     Orders = mnesia:select(list_to_atom(CoinId ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
-    {ok, Orders}.
+    case Orders == [] of
+        true ->
+            {ok, []};
+        false ->
+            [Order | _] = Orders,
+            {ok, Order}
+    end.
 
 get_orders_by_coin(CoinId) ->
     Table = list_to_atom(CoinId ++ "_order"),
@@ -382,28 +414,24 @@ update_market_value(MarketValue, Type, CoinId, Quantity) ->
     end,
     NewMarketValue.
 
-complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency, Limit) ->
-    complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency, Limit, 0, []).
+complete_sell_order(UUID, Orders, UserId, CoinId, MarketValue, PlacedCurrency, Limit) ->
+    complete_sell_order(UUID, Orders, UserId, CoinId, MarketValue, PlacedCurrency, Limit, 0, []).
 
-complete_sell_order([], UserId, CoinId, MarketValue, PlacedCurrency, Limit, BoughtAsset, CompletedTransactions) ->
+complete_sell_order(UUID, [], UserId, CoinId, MarketValue, PlacedCurrency, Limit, BoughtAsset, CompletedTransactions) ->
     ok = update_coin(CoinId, MarketValue),
     if 
         PlacedCurrency > 0 -> 
-            {ok, PendingOrderUUID, PendingOrderTimestamp} = insert_new_order(UserId, "buy", CoinId, PlacedCurrency, Limit),
-            PendingOrder = #{
-                <<"uuid">> => list_to_binary(integer_to_list(PendingOrderUUID)),
-                <<"timestamp">> => list_to_binary(integer_to_list(PendingOrderTimestamp)),
-                <<"quantity">> => PlacedCurrency,
-                <<"limit">> => Limit
-            };
-        PlacedCurrency =< 0 -> 
-            PendingOrder = []
+            ok = update_order_quantity(UUID, CoinId, PlacedCurrency);
+        PlacedCurrency == 0 ->
+            {ok, _} = delete_order(UUID, CoinId); 
+        PlacedCurrency < 0 ->
+            ok = error % TEST
     end,
     ok = add_asset(UserId, CoinId, BoughtAsset),
-    {ok, CompletedTransactions, PendingOrder};
+    {ok, CompletedTransactions};
 
-complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedCurrency, Limit, BoughtAsset, CompletedTransactions) ->
-    {_, UUID, OrderTimestamp, SellerId, _, _, Quantity, _} = Order,
+complete_sell_order(UUID, Order, UserId, CoinId, MarketValue, PlacedCurrency, Limit, BoughtAsset, CompletedTransactions) ->
+    {_, OrderUUID, OrderTimestamp, SellerId, _, _, Quantity, _} = Order,
     {ok, Seller} = get_user(SellerId),
     SellableCurrency = erlang:min(convert_asset_to_currency(MarketValue, Quantity), PlacedCurrency),
     SellableAsset = erlang:min(convert_currency_to_asset(MarketValue, SellableCurrency), Quantity),
@@ -414,10 +442,10 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
     NewPlacedCurrency = PlacedCurrency - SellableCurrency,
 
     if
-        NewOrderQuantity == 0 -> {ok, _} = delete_order(UUID, CoinId);
-        NewOrderQuantity > 0 -> ok = update_order_quantity(UUID, CoinId, NewOrderQuantity);
+        NewOrderQuantity == 0 -> {ok, _} = delete_order(OrderUUID, CoinId);
+        NewOrderQuantity > 0 -> ok = update_order_quantity(OrderUUID, CoinId, NewOrderQuantity);
         NewOrderQuantity < 0 -> 
-            io:format("~p ~p ~p ~p ~p ~p\n", [SellableAsset, SellableCurrency, PlacedCurrency, NewPlacedCurrency, Quantity, NewOrderQuantity]), % TEST
+            % io:format("~p ~p ~p ~p ~p ~p\n", [SellableAsset, SellableCurrency, PlacedCurrency, NewPlacedCurrency, Quantity, NewOrderQuantity]), % TEST
             ok = error % TEST
     end,
     ok = update_deposit(Seller#user.id, NewSellerDeposit),
@@ -430,17 +458,17 @@ complete_sell_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Plac
         <<"market_value">> => MarketValue,
         <<"new_market_value">> => NewMarketValue,
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
-        <<"order_uuid">> => list_to_binary(integer_to_list(UUID)),
-        <<"order_type">> => <<"sell">>,
-        <<"order_timestamp">> => list_to_binary(integer_to_list(OrderTimestamp))
+        <<"buy_order_uuid">> => list_to_binary(integer_to_list(UUID)),
+        <<"sell_order_uuid">> => list_to_binary(integer_to_list(OrderUUID))
     },
 
+    {ok, NextOrder} = get_order_by_type(UserId, "sell", CoinId, MarketValue),
     if  
-        NewPlacedCurrency == 0 orelse RemainingOrders == [] -> complete_sell_order([], UserId, CoinId, NewMarketValue, NewPlacedCurrency, Limit, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction]);
-        NewPlacedCurrency =/= 0 -> complete_sell_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedCurrency, Limit, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction])
+        NewPlacedCurrency == 0 orelse NextOrder == [] -> complete_sell_order(UUID, [], UserId, CoinId, NewMarketValue, NewPlacedCurrency, Limit, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction]);
+        NewPlacedCurrency =/= 0 -> complete_sell_order(UUID, NextOrder, UserId, CoinId, NewMarketValue, NewPlacedCurrency, Limit, BoughtAsset + SellableAsset, CompletedTransactions ++ [CompletedTransaction])
     end.
 
-buy(UserId, CoinId, PlacedCurrency, Limit) ->
+buy(UUID, UserId, CoinId, PlacedCurrency, Limit) ->
     {ok, User} = get_user(UserId),
     Deposit = User#user.deposit,
     if 
@@ -452,41 +480,36 @@ buy(UserId, CoinId, PlacedCurrency, Limit) ->
             {ok, MarketValue} = get_coin_value(CoinId),
             if
                 Limit >= MarketValue orelse Limit == 0 ->
-                    {ok, Orders} = get_orders_by_type(UserId, "sell", CoinId, MarketValue);
+                    {ok, Order} = get_order_by_type(UserId, "sell", CoinId, MarketValue);
                 Limit < MarketValue ->
-                    Orders = [],
-                    {ok, Orders}
+                    Order = [],
+                    {ok, Order}
             end,
-            {ok, CompletedTransactions, NewPendingOrder} = complete_sell_order(Orders, UserId, CoinId, MarketValue, PlacedCurrency, Limit),
-            {ok, CompletedTransactions, NewPendingOrder}
+            {ok, CompletedTransactions} = complete_sell_order(UUID, Order, UserId, CoinId, MarketValue, PlacedCurrency, Limit),
+            {ok, CompletedTransactions}
     end.
 
-complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset, Limit) ->
-    complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset, Limit, 0, []).
+complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit) ->
+    complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit, 0, []).
 
-complete_buy_order([], UserId, CoinId, MarketValue, PlacedAsset, Limit, EarnedCurrency, CompletedTransactions) ->
+complete_buy_order(UUID, [], UserId, CoinId, MarketValue, PlacedAsset, Limit, EarnedCurrency, CompletedTransactions) ->
     ok = update_coin(CoinId, MarketValue),
     {ok, User} = get_user(UserId),
     NewDeposit = User#user.deposit + EarnedCurrency,
     ok = update_deposit(UserId, NewDeposit),
     if 
         PlacedAsset > 0 -> 
-            {ok, PendingOrderUUID, PendingOrderTimestamp} = insert_new_order(UserId, "sell", CoinId, PlacedAsset, Limit),
-            PendingOrder = #{
-                <<"uuid">> => list_to_binary(integer_to_list(PendingOrderUUID)),
-                <<"timestamp">> => list_to_binary(integer_to_list(PendingOrderTimestamp)), 
-                <<"quantity">> => PlacedAsset,
-                <<"limit">> => Limit
-            },
-            {ok, CompletedTransactions, PendingOrder};
+            ok = update_order_quantity(UUID, CoinId, PlacedAsset),
+            {ok, CompletedTransactions};
         PlacedAsset == 0 -> 
-            {ok, CompletedTransactions, []};
+            {ok, _} = delete_order(UUID, CoinId),
+            {ok, CompletedTransactions};
         PlacedAsset < 0 -> 
-            error
+            ok = error % TEST
     end;
 
-complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, PlacedAsset, Limit, EarnedCurrency, CompletedTransactions) ->
-    {_, UUID, OrderTimestamp, BuyerId, _, _, Quantity, _} = Order,
+complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit, EarnedCurrency, CompletedTransactions) ->
+    {_, OrderUUID, OrderTimestamp, BuyerId, _, _, Quantity, _} = Order,
     BuyableAsset = erlang:min(convert_currency_to_asset(MarketValue, Quantity), PlacedAsset),
     BuyableCurrency = erlang:min(convert_asset_to_currency(MarketValue, BuyableAsset), Quantity),
 
@@ -496,10 +519,10 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
     NewPlacedAsset = PlacedAsset - BuyableAsset,
 
     if
-        BuyableCurrency == Quantity -> {ok, _} = delete_order(UUID, CoinId);
-        BuyableCurrency < Quantity -> ok = update_order_quantity(UUID, CoinId, NewOrderQuantity);
+        BuyableCurrency == Quantity -> {ok, _} = delete_order(OrderUUID, CoinId);
+        BuyableCurrency < Quantity -> ok = update_order_quantity(OrderUUID, CoinId, NewOrderQuantity);
         BuyableCurrency > Quantity ->
-            io:format("~p ~p ~p ~p ~p ~p\n", [BuyableAsset, BuyableCurrency, PlacedAsset, NewPlacedAsset, Quantity, NewOrderQuantity]), % TEST
+            % io:format("~p ~p ~p ~p ~p ~p\n", [BuyableAsset, BuyableCurrency, PlacedAsset, NewPlacedAsset, Quantity, NewOrderQuantity]), % TEST
             ok = error % TEST
     end,
 
@@ -512,17 +535,17 @@ complete_buy_order([Order | RemainingOrders], UserId, CoinId, MarketValue, Place
         <<"market_value">> => MarketValue,
         <<"new_market_value">> => NewMarketValue,
         <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)),
-        <<"order_uuid">> => list_to_binary(integer_to_list(UUID)),
-        <<"order_type">> => <<"buy">>,
-        <<"order_timestamp">> => list_to_binary(integer_to_list(OrderTimestamp))
+        <<"buy_order_uuid">> => list_to_binary(integer_to_list(OrderUUID)),
+        <<"sell_order_uuid">> => list_to_binary(integer_to_list(UUID))
     },
 
+    {ok, NextOrder} = get_order_by_type(UserId, "sell", CoinId, MarketValue),
     if  
-        NewPlacedAsset == 0 orelse RemainingOrders == [] -> complete_buy_order([], UserId, CoinId, NewMarketValue, NewPlacedAsset, Limit, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction]);
-        NewPlacedAsset =/= 0 -> complete_buy_order(RemainingOrders, UserId, CoinId, NewMarketValue, NewPlacedAsset, Limit, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction])
+        NewPlacedAsset == 0 orelse NextOrder == [] -> complete_buy_order(UUID, [], UserId, CoinId, NewMarketValue, NewPlacedAsset, Limit, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction]);
+        NewPlacedAsset =/= 0 -> complete_buy_order(UUID, NextOrder, UserId, CoinId, NewMarketValue, NewPlacedAsset, Limit, EarnedCurrency + BuyableCurrency, CompletedTransactions ++ [CompletedTransaction])
     end.
 
-sell(UserId, CoinId, PlacedAsset, Limit) ->
+sell(UUID, UserId, CoinId, PlacedAsset, Limit) ->
     {ok, Asset} = get_asset(UserId, CoinId),
     AssetQuantity = Asset#asset.quantity,
     if
@@ -534,12 +557,43 @@ sell(UserId, CoinId, PlacedAsset, Limit) ->
 
             if
                 Limit =< MarketValue orelse Limit == 0 ->
-                    {ok, Orders} = get_orders_by_type(UserId, "buy", CoinId, MarketValue);
+                    {ok, Order} = get_order_by_type(UserId, "buy", CoinId, MarketValue);
                 Limit > MarketValue ->
-                    Orders = [],
-                    {ok, Orders}
+                    Order = [],
+                    {ok, Order}
             end,
-            {ok, CompletedTransactions, NewPendingOrder} = complete_buy_order(Orders, UserId, CoinId, MarketValue, PlacedAsset, Limit),
-            {ok, CompletedTransactions, NewPendingOrder}
+            {ok, CompletedTransactions} = complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit),
+            {ok, CompletedTransactions}
     end.
-        
+
+% -record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float(), limit::float()}). 
+fill_orders(CoinId, MarketValue) ->
+    fill_orders(CoinId, MarketValue, [], []).
+
+fill_orders(CoinId, MarketValue, CompletedTransactions, OldUUID) ->
+    {ok, Order} = get_next_order(CoinId, MarketValue),
+    case Order == [] of
+        true ->
+            {ok, CompletedTransactions, MarketValue};
+        false ->
+            {_, UUID, _, UserId, Type, _, Quantity, Limit} = Order,
+            case OldUUID == UUID of
+                true ->
+                    {ok, CompletedTransactions, MarketValue};
+                false ->
+                    if
+                        Type == "buy" ->
+                            {ok, NewCompletedTransactions} = buy(UUID, UserId, CoinId, Quantity, Limit);
+                        Type == "sell" ->
+                            {ok, NewCompletedTransactions} = sell(UUID, UserId, CoinId, Quantity, Limit)
+                    end,
+                    case NewCompletedTransactions == [] of
+                        true ->
+                            NewMarketValue = MarketValue;
+                        false ->
+                            LastTransaction = lists:last(NewCompletedTransactions),
+                            {ok, NewMarketValue} = maps:find(<<"new_market_value">>, LastTransaction)
+                    end,
+                    fill_orders(CoinId, NewMarketValue, CompletedTransactions ++ NewCompletedTransactions, UUID)
+            end
+    end.

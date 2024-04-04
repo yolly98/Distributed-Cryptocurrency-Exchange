@@ -119,10 +119,10 @@ class Trade extends Component {
       last_candlesticks.push(new_candlestick)
       last_volumes.push(new_volume)
 
-      console.log('-------------------------------')
-      console.log(new_timeseries) // TEST
-      console.log(new_candlestick) // TEST
-      console.log('-------------------------------')
+//      console.log('-------------------------------')
+//      console.log(new_timeseries) // TEST
+//      console.log(new_candlestick) // TEST
+//      console.log('-------------------------------')
     }
   }
 
@@ -168,11 +168,10 @@ class Trade extends Component {
     let pending_orders = [...this.state.pending_orders]
 
     for (let i = 0; i < pending_orders.length; i++) {
-      if (transaction.order_uuid == pending_orders[i].key) {
-        if (transaction.order_type == 'buy')
-          pending_orders[i].quantity -= transaction.quantity * transaction.market_value
-        else
-          pending_orders[i].quantity -= transaction.quantity
+      if (transaction.buy_order_uuid == pending_orders[i].key) {
+        pending_orders[i].quantity -= transaction.quantity * transaction.market_value
+      } else if (transaction.sell_order_uuid == pending_orders[i].key) {
+        pending_orders[i].quantity -= transaction.quantity
       }
     }
 
@@ -189,7 +188,13 @@ class Trade extends Component {
 
         let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
         let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
+
+        console.log(this.state.pending_orders) // TEST
+
         if (message.transactions.length > 0) {
+
+          console.log(message.transactions) // TEST
+
           message.transactions.forEach(transaction => {
             if (transaction.coin == this.state.coin) {
               // create new transaction
@@ -320,7 +325,7 @@ class Trade extends Component {
       json.orders.forEach(pending_order => {
         let date = new Date(parseInt(pending_order.timestamp) / 1000000)
         let new_pending_order = {
-          key: pending_order.timestamp,
+          key: pending_order.uuid,
           type: pending_order.type,
           quantity: pending_order.quantity,
           timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
@@ -463,14 +468,7 @@ class Trade extends Component {
       available_assets = json.asset
 
     if (response.status == 500) {
-      if (json.quantity <= 0)
-        alert('Requested operation with non positive quantity')
-      else if (type == 'sell' && this.state.available_assets < quantity)
-        alert('Not enough assets to sell')
-      else if (type == 'buy' && this.state.balance < quantity)
-        alert('Not enough money to buy')
-      else
-        alert('Operation failed')
+      alert('Operation failed')
     } else {
       // create new order in pending order panel
       if (!Array.isArray(json.new_pending_order)) {

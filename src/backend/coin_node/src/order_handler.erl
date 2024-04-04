@@ -8,7 +8,8 @@
     get_handler/2,
     post_handler/2,
     delete_resource/2,
-    allowed_methods/2
+    allowed_methods/2,
+    order_worker/1
 ]).
 
 init(Req, Opts) ->
@@ -64,6 +65,23 @@ get_handler(Req, State) ->
     Reply = jsone:encode(#{<<"orders">> => PendingOrders}),
     {Reply, Req, State}.
 
+order_worker(Coin) ->
+    timer:sleep(2000),
+    {atomic, {CompletedTransactions, NewMarketValue}} = mnesia:transaction(fun() -> 
+        {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
+        {ok, CompletedTransactions, NewMarketValue} = coin_node_mnesia:fill_orders(Coin, MarketValue),
+        {CompletedTransactions, NewMarketValue}
+    end),
+    RegisteredPids = global:registered_names(),
+    lists:foreach(fun(RegisteredPid) ->
+        case RegisteredPid of
+            {dispatcher, _, Pid} ->
+                Pid ! {update_market_value, Coin, NewMarketValue, CompletedTransactions};
+            _ ->
+                ok
+        end
+    end, RegisteredPids).
+
 post_handler(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
     #{<<"type">> := BinaryType, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity, <<"limit">> := Limit} = jsone:decode(Body),
@@ -72,55 +90,33 @@ post_handler(Req, State) ->
     Coin = binary_to_list(BinaryCoin),
 
 %    try
-        case Type of
-            "sell" ->
-                true = Quantity > 0, 
-                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:sell(User, Coin, Quantity, Limit),
-                    {ok, Deposit} = coin_node_mnesia:get_deposit(User),
-                    {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
-                    {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
-                    {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}
-                end);
-            "buy" ->
-                true = Quantity > 0,
-                {atomic, {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}} = mnesia:transaction(fun() -> 
-                    {ok, CompletedTransactions, NewPendingOrder} = coin_node_mnesia:buy(User, Coin, Quantity, Limit),
-                    {ok, Deposit} = coin_node_mnesia:get_deposit(User),
-                    {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
-                    {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
-                    {Deposit, Asset, MarketValue, CompletedTransactions, NewPendingOrder}
-                end)
-        end,
-        RegisteredPids = global:registered_names(),
-        lists:foreach(fun(RegisteredPid) ->
-            case RegisteredPid of
-                {dispatcher, _, Pid} ->
-                    Pid ! {update_market_value, Coin, MarketValue, CompletedTransactions};
-                _ ->
-                    ok
-            end
-        end, RegisteredPids),
+        true = Quantity > 0,
+        {atomic, {UUID, Timestamp, Deposit, Asset}} = mnesia:transaction(fun() -> 
+            {ok, UUID, Timestamp} = coin_node_mnesia:insert_new_order(User, Type, Coin, Quantity, Limit),
+            {ok, Deposit} = coin_node_mnesia:get_deposit(User),
+            {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+            {UUID, Timestamp, Deposit, Asset}
+        end),
+        NewPendingOrder = #{
+            <<"uuid">> => list_to_binary(integer_to_list(UUID)),
+            <<"timestamp">> => list_to_binary(integer_to_list(Timestamp)), 
+            <<"quantity">> => Quantity,
+            <<"limit">> => Limit
+        },
         Req2 = cowboy_req:set_resp_body(jsone:encode(#{
             <<"status">> => <<"success">>,
             <<"balance">> => Deposit,
             <<"asset">> => Asset,
             <<"new_pending_order">> => NewPendingOrder
         }), Req1),
+
+        % spawn a process that fills orders
+        spawn(?MODULE, order_worker, [Coin]),
+        
         {true, Req2, State}.
 %    catch
 %        error:_ ->
-%            {atomic, {EffectiveDeposit, EffectiveAsset}} = mnesia:transaction(fun() -> 
-%                {ok, EffectiveDeposit} = coin_node_mnesia:get_deposit(User),
-%                {ok, EffectiveAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
-%                {EffectiveDeposit, EffectiveAsset}
-%            end),
-%            Reply = jsone:encode(#{
-%                <<"status">> => <<"failed">>, 
-%                <<"balance">> => EffectiveDeposit, 
-%                <<"asset">> => EffectiveAsset,
-%                <<"quantity">> => Quantity
-%            }),
+%            Reply = jsone:encode(#{<<"status">> => <<"failed">>}),
 %            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
 %            {halt, Req3, State}
 %    end.
