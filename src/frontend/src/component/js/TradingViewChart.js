@@ -39,9 +39,7 @@ class TradingViewChart extends Component {
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          width: 8,
           color: '#C3BCDB44',
-          style: LineStyle.Solid,
           labelBackgroundColor: '#9B7DFF',
         },
         horzLine: {

@@ -28,7 +28,8 @@ class Trade extends Component {
       last_volumes: [],
       chart_granularity: 60,
       history_limit: 60 * 60 * 24,
-      keepalive: 45000
+      keepalive: 45000,
+      time_zone_correction: 60 * 60 * 2
     }
   }
 
@@ -54,7 +55,8 @@ class Trade extends Component {
         market_operations_limit: config.market_operations_limit,
         chart_granularity: config.chart_granularity,
         history_limit: config.history_limit,
-        keepalive: config.keepalive
+        keepalive: config.keepalive,
+        time_zone_correction: config.time_zone_correction
       }, () => this.initialize())
     })
     .catch(error => console.error(error));
@@ -88,7 +90,7 @@ class Trade extends Component {
     let new_volume = {...last_volumes.slice(-1)[0]}
     if (new_timeseries) {
 
-      let new_time = parseInt((new Date(parseInt(new_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
+      let new_time = parseInt((new Date(parseInt(new_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000) + this.state.time_zone_correction
       if (new_candlestick.time != new_time) {
         new_candlestick.open = new_candlestick.close
         new_candlestick.low = new_timeseries.market_value <= new_candlestick.open ? new_timeseries.market_value : new_candlestick.open
