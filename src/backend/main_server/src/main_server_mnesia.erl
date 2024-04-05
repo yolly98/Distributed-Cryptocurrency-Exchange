@@ -5,7 +5,7 @@
 
 -record(coin, {id::string(), value::float()}).
 
--record(user, {id::string(), deposit::float()}).
+-record(user, {id::string(), password::term(), deposit::float()}).
 
 -record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float(), limit::float()}).
 
@@ -33,6 +33,7 @@ create_database() ->
     ]),
 
     mnesia:create_table(coin, [
+        {type, ordered_set},
         {disc_copies, [node()]},
         {attributes, record_info(fields, coin)}
     ]),
@@ -60,8 +61,8 @@ create_database() ->
 
     % test
     {atomic, _} = mnesia:transaction(fun() ->
-        insert_new_user("Stefano", 100000),
-        insert_new_user("Andrea", 100000),
+        insert_new_user("Stefano", "abc", 100000),
+        insert_new_user("Andrea", "123", 100000),
         insert_new_asset("Andrea", "btc1", 100000),
         insert_new_asset("Stefano", "btc1", 100000)
     end).
@@ -185,13 +186,14 @@ get_new_uuid(Table) ->
 %             ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
 %     end.
 
-insert_new_user(UserId, Deposit) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+insert_new_user(UserId, Password, Deposit) ->
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
         true -> 
-            ok = mnesia:write(#user{id=UserId, deposit=Deposit});
+            HashedPassword = crypto:hash(sha256, Password),
+            ok = mnesia:write(#user{id=UserId, password=HashedPassword, deposit=Deposit});
         false ->
             error
     end.

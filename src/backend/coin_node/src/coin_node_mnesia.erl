@@ -5,14 +5,15 @@
 
 -record(coin, {id::string(), value::float()}).
 
--record(user, {id::string(), deposit::float()}).
+-record(user, {id::string(), password::term(), deposit::float()}).
 
 -record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float(), limit::float()}).
 
 -record(transaction, {uuid::integer(), timestamp::integer(), seller::string(), buyer::string(), coin_id::string(), coins::float(), market_value::float(), new_market_value::float()}).
 
 -export([
-    insert_new_user/2,
+    insert_new_user/3,
+    get_user_password/1,
     get_coins/0, 
     insert_new_coin/2, 
     update_coin/2,
@@ -49,33 +50,46 @@ get_uuid(Table) ->
 
 % -------------------------- USER --------------------------
 
-insert_new_user(UserId, Deposit) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+insert_new_user(UserId, Password, Deposit) ->
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
         true -> 
-            ok = mnesia:write(#user{id=UserId, deposit=Deposit});
+            ok = mnesia:write(#user{id=UserId, password=Password, deposit=Deposit});
         false ->
             error
     end.
 
+get_user_password(UserId) ->
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
+    Guard = {'==', '$1', UserId},
+    Passwords = mnesia:select(user, [{UserRecord, [Guard], ['$2']}]),
+    case Passwords == [] of
+        true -> 
+            error;
+        false ->
+            [Password | _] = Passwords,
+            {ok, Password}
+    end.
+
 get_user(UserId) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
         true -> 
             error;
         false ->
-            [User | _] = Users,
-            {ok, User}
+            [{_, Id, _, Deposit} | _] = Users,
+            NewUser = #user{id=Id, password=[], deposit=Deposit},
+            {ok, NewUser}
     end.
 
 get_deposit(UserId) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
-    Deposits = mnesia:select(user, [{UserRecord, [Guard], ['$2']}]),
+    Deposits = mnesia:select(user, [{UserRecord, [Guard], ['$3']}]),
     case Deposits == [] of
         true -> 
             error;
@@ -85,7 +99,7 @@ get_deposit(UserId) ->
     end.
 
 add_deposit(UserId, Quantity) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
@@ -94,11 +108,11 @@ add_deposit(UserId, Quantity) ->
         false ->
             [User | _] = Users,
             NewValue = User#user.deposit + Quantity,
-            ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
+            ok = mnesia:write(#user{id=User#user.id, password=User#user.password, deposit=NewValue})
     end.
 
 sub_deposit(UserId, Quantity) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
@@ -109,14 +123,14 @@ sub_deposit(UserId, Quantity) ->
             NewValue = User#user.deposit - Quantity,
             if 
                 NewValue >= 0 ->
-                    ok = mnesia:write(#user{id=User#user.id, deposit=NewValue});
+                    ok = mnesia:write(#user{id=User#user.id, password=User#user.password, deposit=NewValue});
                 NewValue < 0 ->
                     error
             end
     end.
 
 update_deposit(UserId, NewValue) ->
-    UserRecord = #user{id='$1', deposit='$2'},
+    UserRecord = #user{id='$1', password='$2', deposit='$3'},
     Guard = {'==', '$1', UserId},
     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
     case Users == [] of
@@ -124,7 +138,7 @@ update_deposit(UserId, NewValue) ->
             error;
         false ->
             [User | _] = Users,
-            ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
+            ok = mnesia:write(#user{id=User#user.id, password=User#user.password, deposit=NewValue})
     end.
 
 % -------------------------- COIN --------------------------

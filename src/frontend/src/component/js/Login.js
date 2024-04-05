@@ -4,10 +4,24 @@ import '../css/Login.css'
 class Login extends Component {
 
   state = {
-
+    host: null,
+    port: null
   }
 
-  login = () => {
+  componentDidMount() {
+    // load configuration
+    fetch('/config.json')
+    .then(response => response.json())
+    .then(config => {
+      this.setState({
+        host: config.host,
+        port: config.port
+      })
+    })
+    .catch(error => console.error(error));
+  }
+
+  login = async () => {
     let user = document.getElementById('user-input').value
     let password = document.getElementById('password-input').value
 
@@ -20,7 +34,63 @@ class Login extends Component {
       return
     }
 
+    let url = 'http://' + this.state.host + ':' + this.state.port + '/api/authentication'
+    let request = {
+      type: 'login',
+      user: user,
+      password: password
+    }
+    let response = await fetch(url, {
+      method : 'POST',
+      headers: {
+        'Content-type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(request)
+    })
+
+    if (response.status != 200) {
+      alert('Login failed')
+      return
+    }
+
     this.props.login(user, password)
+  }
+
+  signup = async () => {
+    let user = document.getElementById('user-input').value
+    let password = document.getElementById('password-input').value
+
+    if (!user || user == '') {
+      alert('Invalid Username')
+      return
+    }
+    if (!password || password == '') {
+      alert('Invalid Password')
+      return
+    }
+
+    let url = 'http://' + this.state.host + ':' + this.state.port + '/api/authentication'
+    let request = {
+      type: 'signup',
+      user: user,
+      password: password
+    }
+    let response = await fetch(url, {
+      method : 'POST',
+      headers: {
+        'Content-type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(request)
+    })
+
+    if (response.status != 200) {
+      alert('Signup failed')
+      return
+    } else {
+      alert('Signup completed')
+    }
   }
 
   render() {

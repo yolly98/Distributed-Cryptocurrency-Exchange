@@ -2,7 +2,7 @@ import '../css/Trade.css'
 import { Component } from 'react'
 import { Socket } from '../../utility/Socket'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faRectangleXmark, faHouse } from '@fortawesome/free-solid-svg-icons'
+import { faRectangleXmark, faHouse, faRightFromBracket } from '@fortawesome/free-solid-svg-icons'
 import TradingViewChart from './TradingViewChart'
 import { Link } from 'react-router-dom'
 
@@ -90,7 +90,7 @@ class Trade extends Component {
     let new_volume = {...last_volumes.slice(-1)[0]}
     if (new_timeseries) {
 
-      let new_time = parseInt((new Date(parseInt(new_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000) + this.state.time_zone_correction
+      let new_time = parseInt((new Date(parseInt(new_timeseries.timestamp) / 1000000)).setSeconds(0, 0) / 1000)
       if (new_candlestick.time != new_time) {
         new_candlestick.open = new_candlestick.close
         new_candlestick.low = new_timeseries.market_value <= new_candlestick.open ? new_timeseries.market_value : new_candlestick.open
@@ -290,7 +290,7 @@ class Trade extends Component {
     })
 
     if (response.status != 200) {
-      alert('Login failed')
+      alert('Get wallet failed')
       return
     }
 
@@ -520,6 +520,9 @@ class Trade extends Component {
           <label id='trade-user-label'>User: {this.state.user}</label>
           <Link id='trade-user-button' to='/user'>
             <FontAwesomeIcon style={{cursor: 'pointer'}} icon={faHouse} />
+          </Link>
+          <Link id='user-page-exit-button' to='/login'>
+            <FontAwesomeIcon style={{cursor: 'pointer'}} icon={faRightFromBracket} />
           </Link>
         </div>
         <h1>Trade {this.state.coin}</h1>

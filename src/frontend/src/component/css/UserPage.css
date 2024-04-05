@@ -1,0 +1,128 @@
+#user-page{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    position: relative;
+}
+
+#user-page-container{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    position: relative;
+}
+
+#user-page-wallet-container{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    border: 0.2rem solid black;
+    padding: 2rem;
+    box-sizing: border-box;
+    margin: 0.5rem 0;
+}
+
+#user-page-wallet-input-container{
+    display: flex;
+    margin-bottom: 1rem;
+    flex-direction: row;
+    align-items: center;
+}
+
+#user-page-wallet-button{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    position: relative;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+#user-page-assets{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%;
+    position: relative;
+}
+
+#user-page-assets-list{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    position: relative;
+}
+
+.user-page-asset-container, .user-page-asset-container-title{
+    display: flex;
+    width: 50%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0.5rem 0;
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 1rem;
+}
+
+.user-page-asset-container:hover{
+    background-color: #cfcfcf;
+}
+
+.user-page-asset-container label{
+    cursor: pointer;
+}
+
+input, select{
+    font-size: 1rem;
+    width: 20rem;
+    height: 2rem;
+    box-sizing: border-box;
+    margin: 0 0.5rem;
+}
+select {
+    cursor: pointer;
+    width: 10rem;
+}
+
+h2{
+    margin: 1rem 0;
+}
+
+#user-page-balance-label{
+    margin-bottom: 1rem;
+}
+  
+button{
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    height: 2rem;
+    margin: 0 1rem;
+}
+
+#user-page-header{
+    display: flex;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    box-sizing: border-box;
+}
+
+#user-page-exit-button{
+  color: black;
+  margin-left: 1rem;
+  font-size: 1.5rem;
+}
+
+#user-page-goto-link{
+    margin-left: 0.2rem;
+}
