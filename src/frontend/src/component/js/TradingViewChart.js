@@ -6,7 +6,8 @@ class TradingViewChart extends Component {
 
   state = {
     area_series: null,
-    volume_series: null
+    volume_series: null,
+    time_zone_correction: null
   }
 
   last_timestamp = null 
@@ -21,6 +22,16 @@ class TradingViewChart extends Component {
   } 
 
   componentDidMount() {
+
+    // load configuration
+    fetch('/config.json')
+    .then(response => response.json())
+    .then(config => {
+      this.setState({
+        time_zone_correction: config.time_zone_correction
+      })
+    })
+    .catch(error => console.error(error));
 
     const chart_options = {
       autoSize: true,
@@ -119,19 +130,33 @@ class TradingViewChart extends Component {
     let last_timestamp = this.last_timestamp
 
     if (new_area_series_list.length == 1 && (!last_timestamp || new_area_series_list[0].time >= last_timestamp)) {
-      area_series.update(new_area_series_list[0])
-      volume_series.update(new_volume_series_list[0])
+
+      let new_timeseries = {...new_area_series_list[0]}
+      let new_volume = {...new_volume_series_list[0]}
+      new_timeseries.time = new_timeseries.time + this.state.time_zone_correction
+      new_volume.time = new_volume.time + this.state.time_zone_correction
+
+      area_series.update(new_timeseries)
+      volume_series.update(new_volume)
+
       last_timestamp = new_area_series_list[0].time
     } else {
       for (let i = 1; i < new_area_series_list.length; i++) {
+
         if (last_timestamp && new_area_series_list[i].time < last_timestamp)
           continue
 
-        if (area_series && new_area_series_list)
-          area_series.update(new_area_series_list[i])
+        if (area_series && new_area_series_list) {
+          let new_timeseries = {...new_area_series_list[i]}
+          new_timeseries.time = new_timeseries.time + this.state.time_zone_correction
+          area_series.update(new_timeseries)
+        }
     
-        if (volume_series && new_volume_series_list)
-          volume_series.update(new_volume_series_list[i])
+        if (volume_series && new_volume_series_list) {
+          let new_volume = {...new_volume_series_list[i]}
+          new_volume.time = new_volume.time + this.state.time_zone_correction
+          volume_series.update(new_volume)
+        }
 
         last_timestamp = new_area_series_list[i].time
       }
