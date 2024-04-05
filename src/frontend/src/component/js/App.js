@@ -26,6 +26,7 @@ class App extends Component {
   login = async (user, password) => {
   
     // TODO REST login request
+    sessionStorage.setItem('user', user)
     this.setState({user}, () => {
       document.getElementById('link_to_user').click()
     })
@@ -52,11 +53,11 @@ class App extends Component {
               />
               <Route
                 exact path = '/trade/:coinId'
-                element = {<Trade user={this.state.user} />}
+                element = {<Trade />}
               />
               <Route
                 exact path = '/user'
-                element = {<UserPage user={this.state.user}/>}
+                element = {<UserPage />}
               />
               <Route path='*' element={<NotFound />} />
             </Routes>

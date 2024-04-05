@@ -33,15 +33,14 @@ class Trade extends Component {
   }
 
   componentDidMount() {
-    console.log(this.props.user)
-    if (!this.props.user) {
+    let user = sessionStorage.getItem('user')
+    if (!user) {
       window.location.href = '/login'
       return
     }
 
     let splitted_url = window.location.pathname.split('/')
     let coin = splitted_url[splitted_url.length - 1]
-    let user = this.props.user
 
     // load configuration
     fetch('/config.json')
@@ -187,19 +186,23 @@ class Trade extends Component {
     // console.log(message) // TEST
     switch (message.opcode) {
       case 'new_placed_order':
-        let market_value = message.market_value
-        let market_operations = [...this.state.market_operations]
-
-        let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
-        let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
-
-        console.log(this.state.pending_orders) // TEST
 
         if (message.transactions.length > 0) {
+          let market_value = message.market_value
+          let market_operations = [...this.state.market_operations]
+  
+          let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
+          let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
+  
+          console.log(this.state.pending_orders) // TEST
 
           console.log(message.transactions) // TEST
 
+          let coins_dict = {}
           message.transactions.forEach(transaction => {
+
+            coins_dict[transaction.coin] = transaction.new_market_value
+
             if (transaction.coin == this.state.coin) {
               // create new transaction
               let date = new Date(parseInt(transaction.timestamp) / 1000000)
@@ -258,8 +261,14 @@ class Trade extends Component {
               this.computeCandlestick(last_timeseries, last_candlesticks, last_volumes)
             }
           })
+
+          let coins = [...this.state.coins]
+          for(let i = 0; i < coins.length; i++)
+            if (coins_dict[coins[i].coin])
+              coins[i].market_value = coins_dict[coins[i].coin]
+
+          this.setState({market_value, market_operations, last_candlesticks, last_volumes, coins})
         }
-        this.setState({market_value, market_operations, last_candlesticks, last_volumes})
         break
     }
   }
@@ -504,10 +513,10 @@ class Trade extends Component {
       limit_input = <input className='limit-input' type='number' placeholder='Limit Market Value'></input>
 
     return (
-      <div id='home'>
-        <div id='home-header'>
-          <label id='home-user-label'>User: {this.state.user}</label>
-          <Link id='home-user-button' to='/user'>
+      <div id='trade'>
+        <div id='trade-header'>
+          <label id='trade-user-label'>User: {this.state.user}</label>
+          <Link id='trade-user-button' to='/user'>
             <FontAwesomeIcon style={{cursor: 'pointer'}} icon={faHouse} />
           </Link>
         </div>
@@ -583,7 +592,28 @@ class Trade extends Component {
                 }
             </div>
           </div>
-          <TradingViewChart id='chart' last_candlesticks={this.state.last_candlesticks} last_volumes={this.state.last_volumes}/>
+          <div id='coin-info-container'>
+            <TradingViewChart id='chart' last_candlesticks={this.state.last_candlesticks} last_volumes={this.state.last_volumes}/>
+            <div id='coin-list-container'>
+              <div className='coin-container-header'>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Name</label>
+                <label style={{fontWeight: 'bold'}} className='order-label'>Value</label>
+              </div>   
+              {
+                this.state.coins.map(coin => (
+                  <Link
+                    key = {coin.coin}
+                    className='coin-container'
+                    to={`/trade/${coin.coin}`}
+                    reloadDocument={true}
+                  >
+                    <label className='coin-label'>{coin.coin}</label>
+                    <label className='coin-label'>{parseFloat(coin.market_value.toFixed(6))}</label>
+                  </Link>
+                ))
+              }   
+            </div>
+          </div>
         </div>
       </div>
     )

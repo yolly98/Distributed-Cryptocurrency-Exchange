@@ -4,17 +4,19 @@ import '../css/UserPage.css'
 class UserPage extends Component {
 
   state = {
-
+    user: null
   }
 
   componentDidMount() {
-    if (!this.props.user)
+    let user = sessionStorage.getItem('user')
+    if (!user)
       window.location.href = '/login'
+    this.setState({user})
   }
 
   render() {
     return(
-      <h1>USER PAGE {this.props.user}</h1>
+      <h1>USER PAGE {this.state.user}</h1>
     )
   }
 }
