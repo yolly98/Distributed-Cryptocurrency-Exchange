@@ -176,6 +176,10 @@ class Trade extends Component {
     }
 
     pending_orders = pending_orders.filter(function (pending_order) { return pending_order.quantity > 0 })
+    console.log("-----------------------------------")
+    console.log(transaction) // TEST
+    console.log(pending_orders) // TEST
+    console.log("-----------------------------------")
     this.setState({pending_orders})
   }
 
