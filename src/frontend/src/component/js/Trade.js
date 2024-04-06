@@ -553,36 +553,62 @@ class Trade extends Component {
             <FontAwesomeIcon style={{cursor: 'pointer'}} icon={faRightFromBracket} />
           </Link>
         </div>
-        <h1>Trade {this.state.coin}</h1>
 
-        <div id='content'>
-
-          <label id='balance'>Balance: {this.state.balance}€</label>
-          <label id='available-cryptos'>Assets: {this.state.available_assets}</label>
-
-          <h2>Operations</h2>
-          <label id='market-value'>Crypto Market Value: {parseFloat(this.state.market_value.toFixed(6))}€</label>
-          <div id='op-header'>
-            <label className='op-type' onClick={() => {this.setState({order_type: 'market'})}}>Market</label>
-            <label className='op-type' onClick={() => {this.setState({order_type: 'limit'})}}>Limit</label>
+        <div id='trade-content'>
+          <div id='trade-title-container'>
+            <label id='title'>Trade {this.state.coin}</label>
+            <label id='market-value'>Crypto Market Value: {parseFloat(this.state.market_value.toFixed(6))}€</label>
           </div>
-          <div id='op-container'>
-            <div className='op'>
-              <h3>Buy</h3>
-              <input id='buy-input' type='number' placeholder='Amount (euro)'></input>
-              {limit_input}
-              <button onClick={() => this.operation('buy')}>BUY</button>
+
+          <div id='trade-content-2'>
+            <div id='coin-info-container'>
+              <div id='coin-list-container'>
+                <div className='coin-container-header'>
+                  <label style={{fontWeight: 'bold'}} className='coin-label-title'>Name</label>
+                  <label style={{fontWeight: 'bold'}} className='coin-label-title'>Value</label>
+                </div>   
+                {
+                  this.state.coins.map(coin => (
+                    <Link
+                      key = {coin.coin}
+                      className='coin-container'
+                      to={`/trade/${coin.coin}`}
+                      reloadDocument={true}
+                    >
+                      <label className='coin-label'>{coin.coin}</label>
+                      <label className='coin-label'>{parseFloat(coin.market_value.toFixed(6))}</label>
+                    </Link>
+                  ))
+                }   
+              </div>
+              <TradingViewChart id='chart' last_candlesticks={this.state.last_candlesticks} last_volumes={this.state.last_volumes}/>
             </div>
-            <div className='op'>
-              <h3>Sell</h3>
-              <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
-              {limit_input}
-              <button onClick={() => this.operation('sell')}>SELL</button>
+
+            <div id='op-container'>
+              <div id='op-header'>
+                <button className='op-type' onClick={() => {this.setState({order_type: 'market'})}}>Market</button>
+                <button className='op-type' onClick={() => {this.setState({order_type: 'limit'})}}>Limit</button>
+              </div>
+              <div className='op'>
+                <h3>Buy</h3>
+                <label id='balance'>Balance: {this.state.balance}€</label>
+                <input id='buy-input' type='number' placeholder='Amount (euro)'></input>
+                {limit_input}
+                <button onClick={() => this.operation('buy')}>BUY</button>
+              </div>
+              <div className='op'>
+                <h3>Sell</h3>
+                <label id='available-cryptos'>Assets: {this.state.available_assets}</label>
+                <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
+                {limit_input}
+                <button onClick={() => this.operation('sell')}>SELL</button>
+              </div>
             </div>
           </div>
+
           <div id='real-time-info-container'>
             <div id='transaction-list-container'>
-              <h2>Market Operations</h2>
+              <label className='list-title'>Market Operations</label>
               <div className='transaction-container'>
                 <label style={{fontWeight: 'bold'}} className='transaction-label'>Price</label>
                 <label style={{fontWeight: 'bold'}} className='transaction-label'>Quantity</label>
@@ -602,12 +628,13 @@ class Trade extends Component {
               }
             </div>
             <div id='order-list-container'>
-            <h2>Pending Orders</h2>
+              <label className='list-title'>Pending Orders</label>
               <div className='order-container'>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Type</label>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Quantity</label>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Time</label>
                 <label style={{fontWeight: 'bold'}} className='order-label'>Limit</label>
+                <label style={{fontWeight: 'bold'}} className='remove-icon'></label>
               </div>
                 {
                   this.state.pending_orders.map(order => (
@@ -619,32 +646,10 @@ class Trade extends Component {
                       <label className='order-label'>{parseFloat(order.quantity.toFixed(6))}</label>
                       <label className='order-label'>{order.timestamp}</label>
                       <label className='order-label'>{order.limit}</label>
-                      <FontAwesomeIcon style={{cursor: 'pointer'}} onClick={() => this.deleteOrder(order)} icon={faRectangleXmark} />
+                      <FontAwesomeIcon  className='remove-icon' style={{cursor: 'pointer'}} onClick={() => this.deleteOrder(order)} icon={faRectangleXmark} />
                     </div>
                   ))
                 }
-            </div>
-          </div>
-          <div id='coin-info-container'>
-            <TradingViewChart id='chart' last_candlesticks={this.state.last_candlesticks} last_volumes={this.state.last_volumes}/>
-            <div id='coin-list-container'>
-              <div className='coin-container-header'>
-                <label style={{fontWeight: 'bold'}} className='order-label'>Name</label>
-                <label style={{fontWeight: 'bold'}} className='order-label'>Value</label>
-              </div>   
-              {
-                this.state.coins.map(coin => (
-                  <Link
-                    key = {coin.coin}
-                    className='coin-container'
-                    to={`/trade/${coin.coin}`}
-                    reloadDocument={true}
-                  >
-                    <label className='coin-label'>{coin.coin}</label>
-                    <label className='coin-label'>{parseFloat(coin.market_value.toFixed(6))}</label>
-                  </Link>
-                ))
-              }   
             </div>
           </div>
         </div>
