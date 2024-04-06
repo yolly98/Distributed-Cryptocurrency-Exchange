@@ -66,7 +66,7 @@ get_handler(Req, State) ->
     {Reply, Req, State}.
 
 order_worker(Coin) ->
-    % timer:sleep(2000),
+    % timer:sleep(2000), % TODO
     {atomic, {CompletedTransactions, NewMarketValue}} = mnesia:transaction(fun() -> 
         {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
         {ok, CompletedTransactions, NewMarketValue} = coin_node_mnesia:fill_orders(Coin, MarketValue),
@@ -99,7 +99,7 @@ post_handler(Req, State) ->
                     {ok, {asset, _, AssetQuantity}} = coin_node_mnesia:get_asset(User, Coin),
                     if
                         AssetQuantity < Quantity -> 
-                            ok = error; % TEST
+                            throw("AssetQuantity lower than Quantity in order post handler");
                         AssetQuantity >= Quantity ->
                             ok = coin_node_mnesia:sub_asset(User, Coin, Quantity)
                     end;
@@ -107,7 +107,7 @@ post_handler(Req, State) ->
                     {ok, {user, _, _, Deposit}} = coin_node_mnesia:get_user(User),
                     if 
                         Deposit < Quantity -> 
-                            ok = error; % TEST
+                            throw("Deposit lower than Quantity in order post handler");
                         Deposit >= Quantity ->
                             ok = coin_node_mnesia:sub_deposit(User, Quantity)
                     end

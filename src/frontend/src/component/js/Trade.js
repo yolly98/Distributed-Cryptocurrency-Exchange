@@ -78,7 +78,6 @@ class Trade extends Component {
         value: 0,
         color: '#26a69a'
       }]
-      // console.log(last_candlestick) // TEST
       this.setState({last_candlesticks, last_volumes})
     }
     setTimeout(() => this.chartTimerCallback(), 1000)
@@ -119,11 +118,6 @@ class Trade extends Component {
           
       last_candlesticks.push(new_candlestick)
       last_volumes.push(new_volume)
-
-//      console.log('-------------------------------')
-//      console.log(new_timeseries) // TEST
-//      console.log(new_candlestick) // TEST
-//      console.log('-------------------------------')
     }
   }
 
@@ -175,21 +169,11 @@ class Trade extends Component {
         balance += transaction.quantity * transaction.market_value
       }
     }
-
     pending_orders = pending_orders.filter(function (pending_order) { return pending_order.quantity > 0 })
-    
-//    console.log("***----------------------------------")
-//    console.log(transaction) // TEST
-//    console.log(pending_orders) // TEST
-//    console.log(balance) // TEST
-//    console.log(available_assets) // TEST
-//    console.log("***-----------------------------------")
-    
     return [balance, available_assets, [...pending_orders]]
   }
 
   socketCallback = (message) => {
-    // console.log(message) // TEST
     switch (message.opcode) {
       case 'new_placed_order':
 
@@ -202,10 +186,6 @@ class Trade extends Component {
   
           let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
           let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
-  
-          console.log(this.state.pending_orders) // TEST
-
-          console.log(message.transactions) // TEST
 
           let coins_dict = {}
           message.transactions.forEach(transaction => {
@@ -281,11 +261,6 @@ class Trade extends Component {
             if (coins_dict[coins[i].coin])
               coins[i].market_value = coins_dict[coins[i].coin]
 
-          console.log("-----------------------------------")
-          console.log(pending_orders) // TEST
-          console.log(balance) // TEST
-          console.log(available_assets) // TEST
-          console.log("-----------------------------------")
           this.setState({market_value, market_operations, last_candlesticks, last_volumes, coins, balance, available_assets, pending_orders})
         }
         break
@@ -381,7 +356,7 @@ class Trade extends Component {
     json = await response.json()
     let history_candlesticks = []
     let history_volumes = []
-    // console.log(json.transactions) // TEST
+
     if (Array.isArray(json.transactions) && json.transactions.length > 0) {
       let date = new Date(json.transactions[0].timestamp / 1000000)
       history_candlesticks = [{
@@ -435,8 +410,6 @@ class Trade extends Component {
         }
       }
     }
-    
-    // console.log(history_candlesticks) // TEST
 
     // open websocket to backend
     if (this.state.websocket)

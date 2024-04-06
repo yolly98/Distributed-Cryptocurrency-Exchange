@@ -18,7 +18,6 @@
     add_node_to_schema/3,
     add_coin/3,
     get_new_uuid/1
-%    remove_coin/1
 ]).
 
 create_database() ->
@@ -55,19 +54,26 @@ create_database() ->
     ]),
     
     ok = add_uuid("transaction"),
-    ok = add_coin("btc1", 20, []),
-    ok = add_coin("btc2", 5, []),
-    ok = add_coin("btc3", 0.5, []),
+    ok = add_coin("btc", 60000, []),
+    ok = add_coin("eth", 2500, []),
+    ok = add_coin("ada", 0.5, []),
+    ok = add_coin("sol", 162, []),
+    ok = add_coin("xrp", 54, []),
+    ok = add_coin("trx", 23, []),
+    ok = add_coin("leo", 35, []),
+    ok = add_coin("til", 455, []),
+    ok = add_coin("cro", 344, []),
+    ok = add_coin("bnb", 22, []),
+    ok = add_coin("itm", 10, []),
+    ok = add_coin("slm", 1, []),
+    ok = add_coin("ptz", 4.003, []),
+    ok = add_coin("lmb", 91.2345, []),
+    ok = add_coin("mmf", 0.00001, []),
+    ok = add_coin("pfc", 66.234, []),
+    ok = add_coin("lor", 666, []),
+    ok = add_coin("mrr", 5664.35353646, []).
 
-    % test
-    {atomic, _} = mnesia:transaction(fun() ->
-        insert_new_user("Stefano", "abc", 100000),
-        insert_new_user("Andrea", "123", 100000),
-        insert_new_asset("Andrea", "btc1", 100000),
-        insert_new_asset("Stefano", "btc1", 100000)
-    end).
-
-create_table_copies(Node, [], CopiesType) ->
+create_table_copies(_, [], _) ->
     ok;
 
 create_table_copies(Node , [Table | RemainingTables], CopiesType) ->
@@ -83,43 +89,6 @@ add_node_to_schema(Node, RamTables, DiscTables) ->
     create_table_copies(Node, RamTables, ram_copies),
     % create disc copies of tables in the node
     create_table_copies(Node, DiscTables, disc_copies).
-
-% rollback_orders([]) ->
-%     ok;
-% 
-% rollback_orders([{_, OrderKey, Type, CoinId, Quantity} | RemainingOrders]) ->
-%     if 
-%         Type == "sell" ->
-%             add_asset(OrderKey#order_key.user_id, CoinId, Quantity);
-%         Type == "buy" ->
-%             add_deposit(OrderKey#order_key.user_id, Quantity)
-%     end,
-%     rollback_orders(RemainingOrders).
-% 
-% 
-% add_asset(UserId, CoinId, Quantity) ->
-%     AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
-%     Guards = [{'==', '$1', UserId}, {'==', '$2', CoinId}],
-%     Assets = mnesia:select(asset, [{AssetRecord, Guards, ['$_']}]),
-%     case Assets == [] of
-%         true -> 
-%             ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=Quantity});
-%         false ->
-%             [Asset | _] = Assets,
-%             NewQuantity = Asset#asset.quantity + Quantity,
-%             ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=NewQuantity})
-%     end.
-%
-% remove_coin(Coin) ->
-%     mnesia:transaction(fun() ->
-%         Table = list_to_atom(Coin ++ "_order"),
-%         OrderRecord = {Table, {order_key, '$1', '$2'}, '$3', '$4', '$5'},
-%         Guards = [{'==', '$4', Coin}],
-%         Orders = mnesia:select(list_to_atom(Coin ++ "_order"), [{OrderRecord, Guards, ['$_']}]),
-%         ok = mnesia:delete({coin, Coin}),
-%         ok = rollback_orders(Orders)
-%     end),
-%     mnesia:delete_table(list_to_atom(Coin ++ "_order")).
 
 add_coin(Coin, Value, Nodes) ->
     {atomic, ok} = mnesia:transaction(fun() ->
@@ -170,41 +139,3 @@ get_new_uuid(Table) ->
         end
     end),
     {ok, UUID}.
-
-% ----------------- DEBUG -----------------
-
-% add_deposit(UserId, Quantity) ->
-%     UserRecord = #user{id='$1', deposit='$2'},
-%     Guard = {'==', '$1', UserId},
-%     Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
-%     case Users == [] of
-%         true -> 
-%             error;
-%         false ->
-%             [User | _] = Users,
-%             NewValue = User#user.deposit + Quantity,
-%             ok = mnesia:write(#user{id=User#user.id, deposit=NewValue})
-%     end.
-
-insert_new_user(UserId, Password, Deposit) ->
-    UserRecord = #user{id='$1', password='$2', deposit='$3'},
-    Guard = {'==', '$1', UserId},
-    Users = mnesia:select(user, [{UserRecord, [Guard], ['$_']}]),
-    case Users == [] of
-        true -> 
-            HashedPassword = crypto:hash(sha256, Password),
-            ok = mnesia:write(#user{id=UserId, password=HashedPassword, deposit=Deposit});
-        false ->
-            error
-    end.
-
-insert_new_asset(UserId, CoinId, Quantity) ->
-    AssetRecord = #asset{asset_key=#asset_key{user_id='$1', coin_id='$2'}, quantity='$3'},
-    Guards = [{'==', '$1', UserId}, {'==', '$2', CoinId}],
-    Assets = mnesia:select(asset, [{AssetRecord, Guards, ['$_']}]),
-    case Assets == [] of
-        true -> 
-            ok = mnesia:write(#asset{asset_key=#asset_key{user_id=UserId, coin_id=CoinId}, quantity=Quantity});
-        false ->
-            error
-    end.

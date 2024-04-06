@@ -11,9 +11,8 @@ init(Req, State) ->
     {cowboy_websocket, Req, State, #{idle_timeout => 60000}}.
 
 websocket_init(State) ->
-	% erlang:start_timer(1000, self(), <<"Hello!">>),  % TEST
 	global:register_name({ws, node(), self()}, self()),
-	io:format("registered pid ~p\n", [self()]), % TEST
+	io:format("registered pid ~p\n", [self()]),
  	{[], State}.
 
 websocket_handle({text, Msg}, State) ->
@@ -36,14 +35,13 @@ websocket_info({broadcast, Msg}, State) ->
     {[{text, Msg}], State};
 
 websocket_info({timeout, _Ref, Msg}, State) ->
-  	% erlang:start_timer(1000, self(), <<"How' you doin'?">>),
   	{[{text, Msg}], State};
 
 websocket_info(_Info, State) ->
   	{[], State}.
 
 websocket_terminate(_Reason, _Req, _State) ->
-    % Unregister the connection
+    % unregister the connection
 	io:format("websocket closed [~p]\n", [self()]),
     global:unregister_name({ws, node(), self()}),
     ok.

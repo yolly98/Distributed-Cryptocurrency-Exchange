@@ -9,7 +9,7 @@ connect_nodes([]) ->
 
 connect_nodes([Node | RemainingNodes]) ->
     true = net_kernel:connect_node(Node),
-    spawn_monitor(Node, application, start, [coin_node]),
+    spawn(Node, application, start, [coin_node]),
     receive ok ->
         Tables = lists:delete(schema, mnesia:system_info(tables)),
         main_server_mnesia:add_node_to_schema(Node, [], Tables)
@@ -33,7 +33,6 @@ start(_StartType, _StartArgs) ->
     io:format("nodes connection completed\n"),
 
     main_server_sup:start_link().
-    % handle monitored process death
 
 stop(_State) ->
     mnesia:stop(),
