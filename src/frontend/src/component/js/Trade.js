@@ -220,6 +220,8 @@ class Trade extends Component {
                 market_value: transaction.market_value,
                 quantity: transaction.quantity,
                 timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
+                buy_order_uuid: transaction.buy_order_uuid,
+                sell_order_uuid: transaction.sell_order_uuid,
                 color: 'black'
               }
 
@@ -510,6 +512,17 @@ class Trade extends Component {
           timestamp: `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`,
           limit: json.new_pending_order.limit
         }
+
+        this.state.market_operations.forEach(transaction => {
+          if (transaction.buy_order_uuid == new_pending_order) {
+            new_pending_order.quantity -= transaction.quantity * transaction.market_value
+            available_assets += transaction.quantity
+          } else if (transaction.sell_order_uuid == new_pending_order.key) {
+            new_pending_order.quantity -= transaction.quantity
+            balance += transaction.quantity * transaction.market_value
+          }
+        })
+
         let pending_orders = [
           new_pending_order,
           ...this.state.pending_orders

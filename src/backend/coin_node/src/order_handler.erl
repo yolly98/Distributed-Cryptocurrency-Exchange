@@ -66,7 +66,7 @@ get_handler(Req, State) ->
     {Reply, Req, State}.
 
 order_worker(Coin) ->
-    timer:sleep(2000),
+    % timer:sleep(2000),
     {atomic, {CompletedTransactions, NewMarketValue}} = mnesia:transaction(fun() -> 
         {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
         {ok, CompletedTransactions, NewMarketValue} = coin_node_mnesia:fill_orders(Coin, MarketValue),
