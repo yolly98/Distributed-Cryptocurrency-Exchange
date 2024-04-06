@@ -13,6 +13,15 @@ class UserPage extends Component {
     coins: []
   }
 
+  formatQuantity = (quantity) => {
+    if (!quantity)
+      return '0'
+    quantity = quantity.toFixed(6)
+    if (parseFloat(quantity) == 0)
+      return `~0`
+    return quantity
+  }
+
   componentDidMount() {
     let user = sessionStorage.getItem('user')
     if (!user) {
@@ -138,7 +147,7 @@ class UserPage extends Component {
         <h1>{this.state.user}</h1>
         <div id='user-page-container'>
           <h2>My Balance</h2>
-          <label id='user-page-balance-label'>{this.state.balance}€</label>
+          <label id='user-page-balance-label'>{this.formatQuantity(this.state.balance)}€</label>
           <div id='user-page-wallet-container'>
             <div id='user-page-wallet-input-container'>
               <select name='coins' id='user-page-coins-select' defaultValue={'euro'}>
@@ -167,7 +176,7 @@ class UserPage extends Component {
               this.state.assets.map(asset => (
                 <Link key={asset.coin} to={`/trade/${asset.coin}`} className='user-page-asset-container'>
                   <label>{asset.coin}</label>
-                  <label>{asset.quantity}</label>
+                  <label>{this.formatQuantity(asset.quantity)}</label>
                 </Link>
               )) 
               }

@@ -62,6 +62,15 @@ class Trade extends Component {
     .catch(error => console.error(error));
   }
 
+  formatQuantity = (quantity) => {
+    if(!quantity)
+      return '0'
+    quantity = quantity.toFixed(6)
+    if (parseFloat(quantity) == 0)
+      return `~0`
+    return quantity
+  }
+
   chartTimerCallback = () => {
     let date = new Date()
     let timestamp = parseInt(date.getTime() / (1000 * this.state.chart_granularity))
@@ -372,9 +381,6 @@ class Trade extends Component {
         color: '#26a69a'
       }]
 
-      console.log(history_candlesticks)
-    
-
       for (let i = 1; i < json.transactions.length; i++) {
         let last_time = parseInt((new Date(parseInt(json.transactions[i - 1].timestamp) / 1000000)).setSeconds(0, 0) / 1000)
         let new_time = parseInt((new Date(parseInt(json.transactions[i].timestamp) / 1000000)).setSeconds(0, 0) / 1000)
@@ -530,7 +536,7 @@ class Trade extends Component {
         <div id='trade-content'>
           <div id='trade-title-container'>
             <label id='title'>Trade {this.state.coin}</label>
-            <label id='market-value'>Crypto Market Value: {parseFloat(this.state.market_value.toFixed(6))}€</label>
+            <label id='market-value'>Crypto Market Value: {this.formatQuantity(this.state.market_value)}€</label>
           </div>
 
           <div id='trade-content-2'>
@@ -549,7 +555,7 @@ class Trade extends Component {
                       reloadDocument={true}
                     >
                       <label className='coin-label'>{coin.coin}</label>
-                      <label className='coin-label'>{parseFloat(coin.market_value.toFixed(6))}</label>
+                      <label className='coin-label'>{this.formatQuantity(coin.market_value)}</label>
                     </Link>
                   ))
                 }   
@@ -564,14 +570,14 @@ class Trade extends Component {
               </div>
               <div className='op'>
                 <h3>Buy</h3>
-                <label id='balance'>Balance: {this.state.balance}€</label>
+                <label id='balance'>Balance: {this.formatQuantity(this.state.balance)}€</label>
                 <input id='buy-input' type='number' placeholder='Amount (euro)'></input>
                 {limit_input}
                 <button onClick={() => this.operation('buy')}>BUY</button>
               </div>
               <div className='op'>
                 <h3>Sell</h3>
-                <label id='available-cryptos'>Assets: {this.state.available_assets}</label>
+                <label id='available-cryptos'>Assets: {this.formatQuantity(this.state.available_assets)}</label>
                 <input id='sell-input' type='number' placeholder='Amount (crypto)'></input>
                 {limit_input}
                 <button onClick={() => this.operation('sell')}>SELL</button>
@@ -593,8 +599,8 @@ class Trade extends Component {
                     key = {transaction.key}
                     className='transaction-container'
                   >
-                    <label className='transaction-label' style={{color: transaction.color}}>{parseFloat(transaction.market_value.toFixed(6))}</label>
-                    <label className='transaction-label'>{parseFloat(transaction.quantity.toFixed(6))}</label>
+                    <label className='transaction-label' style={{color: transaction.color}}>{this.formatQuantity(transaction.market_value)}</label>
+                    <label className='transaction-label'>{this.formatQuantity(transaction.quantity)}</label>
                     <label className='transaction-label'>{transaction.timestamp}</label>
                   </div>
                 ))
@@ -616,7 +622,7 @@ class Trade extends Component {
                       className='order-container'
                     >
                       <label className='order-label'>{order.type}</label>
-                      <label className='order-label'>{parseFloat(order.quantity.toFixed(6))}</label>
+                      <label className='order-label'>{this.formatQuantity(order.quantity)}</label>
                       <label className='order-label'>{order.timestamp}</label>
                       <label className='order-label'>{order.limit}</label>
                       <FontAwesomeIcon  className='remove-icon' style={{cursor: 'pointer'}} onClick={() => this.deleteOrder(order)} icon={faRectangleXmark} />

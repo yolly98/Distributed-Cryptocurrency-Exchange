@@ -11,7 +11,7 @@ connect_nodes([Node | RemainingNodes]) ->
     true = net_kernel:connect_node(Node),
     spawn(Node, application, start, [coin_node]),
     receive ok ->
-        Tables = lists:delete(schema, mnesia:system_info(tables)),
+        Tables = lists:delete(uuid, lists:delete(schema, mnesia:system_info(tables))),
         main_server_mnesia:add_node_to_schema(Node, [], Tables)
     end,
     io:format("Spawned node ~p\n", [Node]),
