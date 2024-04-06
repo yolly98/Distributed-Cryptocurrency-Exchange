@@ -89,13 +89,32 @@ post_handler(Req, State) ->
     User = binary_to_list(BinaryUser),
     Coin = binary_to_list(BinaryCoin),
 
-%    try
+    try
         true = Quantity > 0,
         {atomic, {UUID, Timestamp, Deposit, Asset}} = mnesia:transaction(fun() -> 
             {ok, UUID, Timestamp} = coin_node_mnesia:insert_new_order(User, Type, Coin, Quantity, Limit),
-            {ok, Deposit} = coin_node_mnesia:get_deposit(User),
-            {ok, Asset} = coin_node_mnesia:get_asset_by_user(User, Coin),
-            {UUID, Timestamp, Deposit, Asset}
+
+            if 
+                Type == "sell" ->
+                    {ok, {asset, _, AssetQuantity}} = coin_node_mnesia:get_asset(User, Coin),
+                    if
+                        AssetQuantity < Quantity -> 
+                            ok = error; % TEST
+                        AssetQuantity >= Quantity ->
+                            ok = coin_node_mnesia:sub_asset(User, Coin, Quantity)
+                    end;
+                Type == "buy" ->
+                    {ok, {user, _, _, Deposit}} = coin_node_mnesia:get_user(User),
+                    if 
+                        Deposit < Quantity -> 
+                            ok = error; % TEST
+                        Deposit >= Quantity ->
+                            ok = coin_node_mnesia:sub_deposit(User, Quantity)
+                    end
+            end,
+            {ok, NewDeposit} = coin_node_mnesia:get_deposit(User),
+            {ok, NewAsset} = coin_node_mnesia:get_asset_by_user(User, Coin),
+            {UUID, Timestamp, NewDeposit, NewAsset}
         end),
         NewPendingOrder = #{
             <<"uuid">> => list_to_binary(integer_to_list(UUID)),
@@ -113,13 +132,13 @@ post_handler(Req, State) ->
         % spawn a process that fills orders
         spawn(?MODULE, order_worker, [Coin]),
         
-        {true, Req2, State}.
-%    catch
-%        error:_ ->
-%            Reply = jsone:encode(#{<<"status">> => <<"failed">>}),
-%            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
-%            {halt, Req3, State}
-%    end.
+        {true, Req2, State}
+    catch
+        error:_ ->
+            Reply = jsone:encode(#{<<"status">> => <<"failed">>}),
+            Req3 = cowboy_req:reply(500, #{<<"content-type">> => <<"application/json">>}, Reply, Req1),
+            {halt, Req3, State}
+    end.
 
 delete_resource(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),

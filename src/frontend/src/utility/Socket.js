@@ -1,8 +1,8 @@
 export class Socket {
   constructor(host, port, callback, keepalive) {
     this.callback = callback
-    const url = 'ws://' + host + ':' + port + '/websocket'
-    this.webSocket = new WebSocket(url)
+    this.url = 'ws://' + host + ':' + port + '/websocket'
+    this.webSocket = new WebSocket(this.url)
     this.webSocket.onmessage = this.onWebSocketMessage
     this.keepalive = keepalive
     setTimeout(() => this.sendKeepalive(), keepalive);
@@ -11,7 +11,14 @@ export class Socket {
   sendKeepalive = () => {
     if (!this.webSocket)
       return
-    this.webSocket.send(JSON.stringify({opcode: 'keepalive'}))
+    switch (this.webSocket.readyState) {
+      case WebSocket.CLOSED:
+        this.webSocket = new WebSocket(this.url)
+        break
+      case WebSocket.OPEN:
+        this.webSocket.send(JSON.stringify({opcode: 'keepalive'}))
+        break
+    }
     setTimeout(() => this.sendKeepalive(), this.keepalive);
   }
 

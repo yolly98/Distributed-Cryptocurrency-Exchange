@@ -165,23 +165,27 @@ class Trade extends Component {
     this.setState({available_assets, balance, pending_orders})
   }
 
-  updatePendingOrders = (transaction) => {
-    let pending_orders = [...this.state.pending_orders]
-
+  updatePendingOrders = (balance, available_assets, pending_orders, transaction) => {
     for (let i = 0; i < pending_orders.length; i++) {
       if (transaction.buy_order_uuid == pending_orders[i].key) {
         pending_orders[i].quantity -= transaction.quantity * transaction.market_value
+        available_assets += transaction.quantity
       } else if (transaction.sell_order_uuid == pending_orders[i].key) {
         pending_orders[i].quantity -= transaction.quantity
+        balance += transaction.quantity * transaction.market_value
       }
     }
 
     pending_orders = pending_orders.filter(function (pending_order) { return pending_order.quantity > 0 })
-    console.log("-----------------------------------")
-    console.log(transaction) // TEST
-    console.log(pending_orders) // TEST
-    console.log("-----------------------------------")
-    this.setState({pending_orders})
+    
+//    console.log("***----------------------------------")
+//    console.log(transaction) // TEST
+//    console.log(pending_orders) // TEST
+//    console.log(balance) // TEST
+//    console.log(available_assets) // TEST
+//    console.log("***-----------------------------------")
+    
+    return [balance, available_assets, [...pending_orders]]
   }
 
   socketCallback = (message) => {
@@ -192,6 +196,9 @@ class Trade extends Component {
         if (message.transactions.length > 0) {
           let market_value = message.market_value
           let market_operations = [...this.state.market_operations]
+          let balance = this.state.balance
+          let available_assets = this.state.available_assets
+          let pending_orders = [...this.state.pending_orders]
   
           let last_candlesticks = [{...this.state.last_candlesticks.slice(-1)[0]}]
           let last_volumes = [{...this.state.last_volumes.slice(-1)[0]}]
@@ -252,7 +259,10 @@ class Trade extends Component {
               if (market_operations.length > this.state.market_operations_limit)
                 market_operations.pop()
 
-              this.updatePendingOrders(transaction)
+              let res = this.updatePendingOrders(balance, available_assets, pending_orders, transaction)
+              balance = res[0]
+              available_assets = res[1]
+              pending_orders = res[2]
 
               // add new timeseries to chart 
               let last_timeseries = {
@@ -269,7 +279,12 @@ class Trade extends Component {
             if (coins_dict[coins[i].coin])
               coins[i].market_value = coins_dict[coins[i].coin]
 
-          this.setState({market_value, market_operations, last_candlesticks, last_volumes, coins})
+          console.log("-----------------------------------")
+          console.log(pending_orders) // TEST
+          console.log(balance) // TEST
+          console.log(available_assets) // TEST
+          console.log("-----------------------------------")
+          this.setState({market_value, market_operations, last_candlesticks, last_volumes, coins, balance, available_assets, pending_orders})
         }
         break
     }

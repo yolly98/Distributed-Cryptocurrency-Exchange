@@ -505,25 +505,16 @@ complete_sell_order(UUID, Order, UserId, CoinId, MarketValue, PlacedCurrency, Li
     end.
 
 buy(UUID, UserId, CoinId, PlacedCurrency, Limit) ->
-    {ok, User} = get_user(UserId),
-    Deposit = User#user.deposit,
-    if 
-        Deposit < PlacedCurrency -> 
-            error;
-        Deposit >= PlacedCurrency ->
-            NewDeposit = Deposit - PlacedCurrency, 
-            ok = update_deposit(UserId, NewDeposit),
-            {ok, MarketValue} = get_coin_value(CoinId),
-            if
-                Limit >= MarketValue orelse Limit == 0 ->
-                    {ok, Order} = get_order_by_type(UserId, "buy", CoinId, MarketValue);
-                Limit < MarketValue ->
-                    Order = [],
-                    {ok, Order}
-            end,
-            {ok, CompletedTransactions} = complete_sell_order(UUID, Order, UserId, CoinId, MarketValue, PlacedCurrency, Limit),
-            {ok, CompletedTransactions}
-    end.
+    {ok, MarketValue} = get_coin_value(CoinId),
+    if
+        Limit >= MarketValue orelse Limit == 0 ->
+            {ok, Order} = get_order_by_type(UserId, "buy", CoinId, MarketValue);
+        Limit < MarketValue ->
+            Order = [],
+            {ok, Order}
+    end,
+    {ok, CompletedTransactions} = complete_sell_order(UUID, Order, UserId, CoinId, MarketValue, PlacedCurrency, Limit),
+    {ok, CompletedTransactions}.
 
 complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit) ->
     complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit, 0, []).
@@ -589,25 +580,16 @@ complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit,
     end.
 
 sell(UUID, UserId, CoinId, PlacedAsset, Limit) ->
-    {ok, Asset} = get_asset(UserId, CoinId),
-    AssetQuantity = Asset#asset.quantity,
+    {ok, MarketValue} = get_coin_value(CoinId),
     if
-        AssetQuantity < PlacedAsset -> 
-            error;
-        AssetQuantity >= PlacedAsset ->
-            ok = sub_asset(UserId, CoinId, PlacedAsset),
-            {ok, MarketValue} = get_coin_value(CoinId),
-
-            if
-                Limit =< MarketValue orelse Limit == 0 ->
-                    {ok, Order} = get_order_by_type(UserId, "sell", CoinId, MarketValue);
-                Limit > MarketValue ->
-                    Order = [],
-                    {ok, Order}
-            end,
-            {ok, CompletedTransactions} = complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit),
-            {ok, CompletedTransactions}
-    end.
+        Limit =< MarketValue orelse Limit == 0 ->
+            {ok, Order} = get_order_by_type(UserId, "sell", CoinId, MarketValue);
+        Limit > MarketValue ->
+            Order = [],
+            {ok, Order}
+    end,
+    {ok, CompletedTransactions} = complete_buy_order(UUID, Order, UserId, CoinId, MarketValue, PlacedAsset, Limit),
+    {ok, CompletedTransactions}.
 
 % -record(order, {uuid::integer(), timestamp::integer(), user_id::string(), type::string(), coin_id::string(), quantity::float(), limit::float()}). 
 fill_orders(CoinId, MarketValue) ->
