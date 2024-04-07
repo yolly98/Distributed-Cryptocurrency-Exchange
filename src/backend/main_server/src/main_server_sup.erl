@@ -15,19 +15,11 @@ init([]) ->
     SupFlags = #{strategy => one_for_all,
                  intensity => 0,
                  period => 1},
-    CowboyListener = #{
-        id => cowboy_listener,
-        start => {cowboy_listener, start, []},
-        restart => permanent,
-        shutdown => brutal_kill
-    },
     UUIDGenerator = #{
         id => uuid_generator,
         start => {uuid_generator, start, []},
         restart => permanent,
         shutdown => brutal_kill
     },
-    ChildSpecs = [CowboyListener, UUIDGenerator],
+    ChildSpecs = [UUIDGenerator],
     {ok, {SupFlags, ChildSpecs}}.
-
-
