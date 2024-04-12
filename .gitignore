@@ -20,5 +20,4 @@ logs
 rebar3.crashdump
 *~
 *.lock
-docs
 TODO.md
