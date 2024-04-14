@@ -24,8 +24,6 @@ class App extends Component {
   }
 
   login = async (user, password) => {
-  
-    // TODO REST login request
     sessionStorage.setItem('user', user)
     this.setState({user}, () => {
       document.getElementById('link_to_user').click()
