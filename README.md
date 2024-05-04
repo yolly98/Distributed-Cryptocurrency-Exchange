@@ -14,6 +14,10 @@ The application consists of a ***distributed cryptocurrency exchange*** composed
 * Three **Coin Nodes** that handle client requests and provide the service
 * The **Main Server** that creates and handles the cluster of nodes
 
+<p align="center">
+  <img src="docs/img/architecture.png" alt="" width="80%"/>
+</p>
+
 A **user** of the application can perform the follwing actions:
 * Login/Logout
 * Visualize a list of all assets associated with their market value
@@ -24,6 +28,11 @@ A **user** of the application can perform the follwing actions:
 * Add money and assets to his/her wallet
 * Visualize owned assets and available balance
 * Visualize pending orders and transaction history
+
+Below is an example of the GUI.
+<p align="center">
+  <img src="docs/img/trade.png" alt="" width="100%"/>
+</p>
 
 ## Getting Started
 
