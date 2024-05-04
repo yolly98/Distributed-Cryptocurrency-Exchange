@@ -6,6 +6,18 @@
 
 -define(SERVER, ?MODULE).
 
+create_order_fillers([], ChildSpecs) ->
+    {ok, ChildSpecs};
+
+create_order_fillers([{_, Coin, _} | RemainingCoins], ChildSpecs) ->
+    NewChild = #{
+        id => list_to_atom(Coin ++ "_order_filler"),
+        start => {order_filler, start, [Coin]},
+        restart => permanent,
+        shutdown => brutal_kill
+    },
+    create_order_fillers(RemainingCoins, ChildSpecs ++ [NewChild]).
+
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -18,13 +30,25 @@ init([]) ->
         id => dispatcher,
         start => {broadcast_dispatcher, start, []},
         restart => permanent,
-        shutdown => brutal_kill
+        shutdown => brutal_kill,
+        type => worker,
+        modules => [broadcast_dispatcher]
     },
     CowboyListener = #{
         id => listener,
         start => {cowboy_listener, start, []},
         restart => permanent,
-        shutdown => brutal_kill
+        shutdown => brutal_kill,
+        type => worker,
+        modules => [cowboy_listener]
     },
-    ChildSpecs = [CowboyListener, BrodcastDispatcher],
-    {ok, {SupFlags, ChildSpecs}}.
+    ChildSpecs = [BrodcastDispatcher, CowboyListener],
+
+    % create one order_filler for each coin
+    {atomic, Coins} = mnesia:transaction(fun() ->
+        {ok, Coins} = coin_node_mnesia:get_coins(),
+        Coins
+    end),
+    {ok, NewChildSpecs} = create_order_fillers(Coins, ChildSpecs),
+    
+    {ok, {SupFlags, NewChildSpecs}}.

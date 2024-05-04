@@ -10,6 +10,7 @@ start(_StartType, _StartArgs) ->
     
     {main_server, main_server@main_server} ! ok,
 
+    timer:sleep(5000),
     io:format("coin node started\n"),
     coin_node_sup:start_link().
 

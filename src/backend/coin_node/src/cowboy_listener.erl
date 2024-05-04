@@ -3,6 +3,7 @@
 -export([start/0, kill/0]).
 
 start() ->
+    io:format("cowboy listener started \n"),
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/api/authentication", authentication_handler, []},

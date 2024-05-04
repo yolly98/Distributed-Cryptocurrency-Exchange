@@ -1,10 +1,12 @@
 -module(broadcast_dispatcher).
 
--export([start/0]).
+-export([start/0, loop/0]).
 
 start() ->
-    global:register_name({dispatcher, node(), self()}, self()),
-    loop().
+    io:format("broadcast dispatcher started \n"),
+    Pid = spawn_link(?MODULE, loop, []),
+    global:register_name({dispatcher, node(), Pid}, Pid),
+    {ok, Pid}.
 
 loop() ->
     receive {update_market_value, Coin, MarketValue, CompletedTransactions} ->

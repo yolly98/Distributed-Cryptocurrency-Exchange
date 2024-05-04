@@ -8,8 +8,7 @@
     get_handler/2,
     post_handler/2,
     delete_resource/2,
-    allowed_methods/2,
-    order_worker/1
+    allowed_methods/2
 ]).
 
 init(Req, Opts) ->
@@ -65,22 +64,6 @@ get_handler(Req, State) ->
     Reply = jsone:encode(#{<<"orders">> => PendingOrders}),
     {Reply, Req, State}.
 
-order_worker(Coin) ->
-    {atomic, {CompletedTransactions, NewMarketValue}} = mnesia:transaction(fun() -> 
-        {ok, MarketValue} = coin_node_mnesia:get_coin_value(Coin),
-        {ok, CompletedTransactions, NewMarketValue} = coin_node_mnesia:fill_orders(Coin, MarketValue),
-        {CompletedTransactions, NewMarketValue}
-    end),
-    RegisteredPids = global:registered_names(),
-    lists:foreach(fun(RegisteredPid) ->
-        case RegisteredPid of
-            {dispatcher, _, Pid} ->
-                Pid ! {update_market_value, Coin, NewMarketValue, CompletedTransactions};
-            _ ->
-                ok
-        end
-    end, RegisteredPids).
-
 post_handler(Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
     #{<<"type">> := BinaryType, <<"user">> := BinaryUser, <<"coin">> := BinaryCoin, <<"quantity">> := Quantity, <<"limit">> := Limit} = jsone:decode(Body),
@@ -128,8 +111,8 @@ post_handler(Req, State) ->
             <<"new_pending_order">> => NewPendingOrder
         }), Req1),
 
-        % spawn a process that fills orders
-        spawn(?MODULE, order_worker, [Coin]),
+        % send fill_orders message to order_filler process
+        global:whereis_name({list_to_atom(Coin ++ "_order_filler"), node()}) ! fill_orders,
         
         {true, Req2, State}
     catch
