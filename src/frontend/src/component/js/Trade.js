@@ -65,8 +65,6 @@ class Trade extends Component {
   formatQuantity = (quantity) => {
     if(!quantity || typeof quantity !== "number")
       return '0'
-    console.log(quantity)
-    console.log(typeof quantity)
     quantity = quantity.toFixed(6)
     if (parseFloat(quantity) == 0)
       return `~0`
